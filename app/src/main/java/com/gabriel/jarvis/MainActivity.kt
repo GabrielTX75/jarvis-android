@@ -18,6 +18,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import androidx.webkit.WebViewAssetLoader
 import java.util.Locale
 
@@ -34,7 +36,19 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private var listening = false
     private var lastUtteranceId = ""
 
-    companion object { private const val REQ_AUDIO = 4102 }
+    companion object {
+        private const val REQ_AUDIO = 4102
+        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key")
+    }
+
+    private val secretPrefs by lazy {
+        val masterKey = MasterKey.Builder(this).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            this, "jarvis_segredos", masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +91,14 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun speak(text: String, id: String, rate: Float, pitch: Float) { runOnUiThread { speakNative(text, id, rate, pitch) } }
         @JavascriptInterface fun stopSpeaking() { runOnUiThread { tts?.stop() } }
         @JavascriptInterface fun platform(): String = "android-native"
+        @JavascriptInterface fun getSecret(name: String): String {
+            if (name !in SECRET_NAMES) return ""
+            return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
+        }
+        @JavascriptInterface fun setSecret(name: String, value: String): Boolean {
+            if (name !in SECRET_NAMES || value.length > 4000) return false
+            return try { secretPrefs.edit().putString(name, value).commit() } catch (e: Exception) { false }
+        }
 
         // Lista fechada: o conteúdo da página não pode escolher pacotes arbitrários.
         @JavascriptInterface fun openApp(key: String, requestId: String) {

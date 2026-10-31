@@ -11,8 +11,8 @@ android {
         applicationId = "com.gabriel.jarvis"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7.0"
+        versionCode = 8
+        versionName = "0.8.0"
     }
 
     buildTypes {
@@ -30,4 +30,5 @@ android {
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.security:security-crypto:1.0.0")
 }
