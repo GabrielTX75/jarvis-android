@@ -1,0 +1,14 @@
+JARVIS_ANDROID — COMO USAR ESTA PASTA
+
+1. Extraia JARVIS_ANDROID_07.zip.
+2. Abra a pasta JARVIS_ANDROID no Android Studio.
+3. Aguarde a sincronização do Gradle.
+4. Execute o módulo app no celular com depuração USB ou gere um APK pelo Android Studio.
+5. No primeiro uso, permita o microfone.
+6. Para configurar a IA, siga API_CONFIGURACAO.txt.
+
+ATENÇÃO
+- Esta entrega contém o projeto-fonte, não um APK pronto.
+- Não foi possível compilar ou executar testes Android neste ambiente, pois não há Android SDK/Gradle instalado aqui.
+- O teste de IA ocorre dentro do app, usando o endpoint e modelo que você configurar.
+- Não compartilhe chaves de API.

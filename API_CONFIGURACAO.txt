@@ -1,0 +1,30 @@
+JARVIS ANDROID — CONFIGURAÇÃO DA IA
+Versão do projeto: 0.7.0
+
+1. Abra o JARVIS e entre em Configurações.
+2. Em Provedor de IA, selecione “IA local / servidor compatível”.
+3. Informe o endereço COMPLETO do endpoint de chat compatível com OpenAI. Normalmente termina em:
+   /v1/chat/completions
+4. Informe o identificador exato do modelo aceito pelo servidor.
+5. Se o servidor exigir autenticação, informe a chave no campo temporário.
+6. Toque em “Testar conexão com a IA”.
+7. Se aparecer “Conectado”, envie uma mensagem normal ao JARVIS.
+
+COMO INTERPRETAR ERROS
+- URL inválida: endereço digitado incorretamente.
+- HTTP 401/403: chave ausente, incorreta ou sem permissão.
+- HTTP 404: rota ou modelo não encontrado; confira o endpoint completo.
+- HTTP 429: limite de uso ou créditos atingidos.
+- HTTP 5xx: falha no servidor do provedor.
+- Falha de conexão/CORS: servidor inacessível, política CORS ou rede.
+- Modelo não retornou texto: resposta não veio no formato esperado ou modelo incorreto.
+
+SEGURANÇA
+- Não envie sua chave de API em prints, conversas ou arquivos públicos.
+- A chave digitada é mantida apenas na sessão atual do app e precisa ser informada novamente após reiniciar.
+- Não coloque uma chave secreta dentro do APK para distribuir a outras pessoas.
+- Para um app público, crie um backend HTTPS e mantenha a chave somente no servidor.
+- HTTP é bloqueado para servidores externos; somente localhost/127.0.0.1 é liberado para testes locais.
+
+COMPATIBILIDADE
+Esta versão usa o formato de chat compatível com OpenAI. APIs de fornecedores que usam outro formato precisam de um adaptador/backend. Não basta colar qualquer API key: endpoint, modelo, autenticação e formato precisam corresponder.
