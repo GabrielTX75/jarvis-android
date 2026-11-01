@@ -17,6 +17,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.Uri
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -67,6 +68,9 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.addJavascriptInterface(NativeBridge(), "JarvisAndroid")
+        WhatsAppBridge.onMessage = { key, title, text ->
+            js("jarvisWhatsappMessage", "${JSONObjectQuote(key)}, ${JSONObjectQuote(title)}, ${JSONObjectQuote(text)}")
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
                 assetLoader.shouldInterceptRequest(request.url)
@@ -91,6 +95,44 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun speak(text: String, id: String, rate: Float, pitch: Float) { runOnUiThread { speakNative(text, id, rate, pitch) } }
         @JavascriptInterface fun stopSpeaking() { runOnUiThread { tts?.stop() } }
         @JavascriptInterface fun platform(): String = "android-native"
+        @JavascriptInterface fun openAppByName(query: String, requestId: String) {
+            runOnUiThread {
+                val wanted = normalizeAppName(query)
+                val pm = packageManager
+                val launchables = pm.queryIntentActivities(
+                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
+                )
+                val named = launchables.map { Pair(normalizeAppName(it.loadLabel(pm).toString()), it.activityInfo.packageName) }
+                val match = named.firstOrNull { it.first == wanted }
+                    ?: named.firstOrNull { wanted.isNotEmpty() && it.first.contains(wanted) }
+                if (match == null) {
+                    actionResult(requestId, false, "Não encontrei nenhum aplicativo chamado $query.")
+                    return@runOnUiThread
+                }
+                try {
+                    val launch = pm.getLaunchIntentForPackage(match.second)
+                    if (launch == null) actionResult(requestId, false, "Esse aplicativo não pode ser aberto.")
+                    else {
+                        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launch)
+                        actionResult(requestId, true, match.first + " aberto.")
+                    }
+                } catch (_: Exception) {
+                    actionResult(requestId, false, "O Android não conseguiu abrir esse aplicativo.")
+                }
+            }
+        }
+        @JavascriptInterface fun replyWhatsapp(key: String, text: String): Boolean =
+            WhatsAppBridge.reply(this@MainActivity, key, text.take(600))
+        @JavascriptInterface fun notificationAccessEnabled(): Boolean {
+            val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: return false
+            return flat.contains(packageName)
+        }
+        @JavascriptInterface fun openNotificationAccess() {
+            runOnUiThread {
+                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
         @JavascriptInterface fun getSecret(name: String): String {
             if (name !in SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
@@ -221,6 +263,9 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     private fun JSONObjectQuote(value: String): String = org.json.JSONObject.quote(value)
+    private fun normalizeAppName(s: String): String =
+        java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT).trim()
 
     override fun onInit(status: Int) {
         ttsInitDone = true
@@ -305,6 +350,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     override fun onResume() { super.onResume(); if (::webView.isInitialized) webView.evaluateJavascript("window.jarvisNativeResume && window.jarvisNativeResume()", null) }
     override fun onPause() { stopRecognition(); super.onPause() }
     override fun onDestroy() {
+        WhatsAppBridge.onMessage = null
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
         if (::webView.isInitialized) { webView.removeJavascriptInterface("JarvisAndroid"); webView.destroy() }

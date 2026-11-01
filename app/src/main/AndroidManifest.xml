@@ -13,6 +13,7 @@
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.android.vending" />
         <package android:name="com.google.android.apps.youtube.music" />
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
     </queries>
 
     <application
@@ -31,5 +32,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".WhatsAppNotificationService"
+            android:exported="true"
+            android:label="JARVIS WhatsApp"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
