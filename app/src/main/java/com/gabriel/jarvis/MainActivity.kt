@@ -18,6 +18,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.Uri
 import android.provider.Settings
+import android.os.Environment
+import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -136,6 +140,47 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun getSecret(name: String): String {
             if (name !in SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
+        }
+        @JavascriptInterface fun allFilesAccessEnabled(): Boolean =
+            Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()
+        @JavascriptInterface fun openAllFilesAccess() {
+            runOnUiThread {
+                val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(i)
+            }
+        }
+        @JavascriptInterface fun transcribeLatestVoiceNote(sinceMs: String, requestId: String) {
+            val since = sinceMs.toLongOrNull() ?: (System.currentTimeMillis() - 90_000L)
+            Thread {
+                val result: Pair<Boolean, String> = try {
+                    if (!(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager())) {
+                        Pair(false, "Ative o acesso a todos os arquivos para o JARVIS ouvir áudios.")
+                    } else {
+                        val ready = CompletableFuture<Boolean>()
+                        runOnUiThread { AudioTranscriber.ensureModel(this@MainActivity) { ready.complete(it) } }
+                        if (!ready.get(60, TimeUnit.SECONDS)) {
+                            Pair(false, "O modelo de voz não carregou.")
+                        } else {
+                            var file: File? = null
+                            val deadline = System.currentTimeMillis() + 20_000L
+                            while (file == null && System.currentTimeMillis() < deadline) {
+                                file = AudioTranscriber.newestVoiceNote(since)
+                                if (file == null) Thread.sleep(1000)
+                            }
+                            if (file == null) {
+                                Pair(false, "Não achei o áudio no celular.")
+                            } else {
+                                Thread.sleep(1500)
+                                Pair(true, AudioTranscriber.transcribe(file))
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Pair(false, "Não consegui ouvir o áudio.")
+                }
+                js("jarvisAudioTranscript", "${JSONObjectQuote(requestId)}, ${result.first}, ${JSONObjectQuote(result.second)}")
+            }.start()
         }
         @JavascriptInterface fun clearSecrets(): Boolean =
             try { secretPrefs.edit().clear().commit() } catch (e: Exception) { false }
