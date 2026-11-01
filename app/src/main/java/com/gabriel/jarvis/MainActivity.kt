@@ -29,6 +29,7 @@ import androidx.webkit.WebViewAssetLoader
 import java.util.Locale
 
 class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListener {
+    private var pendingWake = false
     private lateinit var webView: WebView
     private lateinit var assetLoader: WebViewAssetLoader
     private var recognizer: SpeechRecognizer? = null
@@ -43,7 +44,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
 
     companion object {
         private const val REQ_AUDIO = 4102
-        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "pin_hash")
+        private const val REQ_NOTIF = 4103
+        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "pin_hash", "picovoice_key")
     }
 
     private val secretPrefs by lazy {
@@ -57,6 +59,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingWake = intent?.getBooleanExtra("wake", false) == true
+        iniciarOuvirSeAtivo()
         window.statusBarColor = android.graphics.Color.rgb(10, 6, 4)
         window.navigationBarColor = android.graphics.Color.rgb(10, 6, 4)
         tts = TextToSpeech(this, this)
@@ -186,6 +190,27 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 .putString("endpoint", endpoint.take(300))
                 .putString("model", model.take(120))
                 .apply()
+        }
+        @JavascriptInterface fun picovoiceConfigurada(): Boolean = Cofre.ler(this@MainActivity, "picovoice_key").isNotEmpty()
+        @JavascriptInterface fun ouvirSegundoPlanoAtivo(): Boolean = ouvirAtivo()
+        @JavascriptInterface fun setOuvirSegundoPlano(on: Boolean): Boolean {
+            if (on && Cofre.ler(this@MainActivity, "picovoice_key").isEmpty()) return false
+            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", on).apply()
+            runOnUiThread {
+                if (on) {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+                    }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO)
+                    }
+                    iniciarOuvirSeAtivo()
+                } else {
+                    stopService(Intent(this@MainActivity, JarvisOuvidoService::class.java))
+                }
+            }
+            return true
         }
         @JavascriptInterface fun clearSecrets(): Boolean =
             try { secretPrefs.edit().clear().commit() } catch (e: Exception) { false }
@@ -400,7 +425,22 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     override fun onResume() { super.onResume(); if (::webView.isInitialized) webView.evaluateJavascript("window.jarvisNativeResume && window.jarvisNativeResume()", null) }
-    override fun onPause() { stopRecognition(); super.onPause() }
+        JarvisOuvidoService.telaAtiva(true)
+        if (pendingWake && ::webView.isInitialized) { pendingWake = false; js("jarvisWake", "") }
+    override fun onPause() { stopRecognition(); JarvisOuvidoService.telaAtiva(false); super.onPause() }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent?.getBooleanExtra("wake", false) == true && ::webView.isInitialized) js("jarvisWake", "")
+    }
+
+    private fun ouvirAtivo(): Boolean =
+        getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).getBoolean("ativo", false)
+
+    private fun iniciarOuvirSeAtivo() {
+        if (!ouvirAtivo() || Cofre.ler(this, "picovoice_key").isEmpty()) return
+        try { ContextCompat.startForegroundService(this, Intent(this, JarvisOuvidoService::class.java)) } catch (_: Exception) {}
+    }
+
     override fun onDestroy() {
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
