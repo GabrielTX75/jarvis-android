@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -22,6 +23,8 @@ import androidx.security.crypto.MasterKey
 class JarvisOuvidoService : Service() {
     private var manager: PorcupineManager? = null
     private var ultimoAlerta = 0L
+    private var sessao: NucleoSessao? = null
+    private var capturando = false
 
     companion object {
         private const val CANAL_OUVIR = "jarvis_ouvir"
@@ -47,6 +50,18 @@ class JarvisOuvidoService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        iniciarPrimeiroPlano()
+        if (manager == null && !tela && sessao == null) ligar()
+        return START_STICKY
+    }
+
+    /** Liga ou desliga o tipo de serviço de captura de tela (exigido pelo Android 14). */
+    fun modoCaptura(on: Boolean) {
+        capturando = on
+        iniciarPrimeiroPlano()
+    }
+
+    private fun iniciarPrimeiroPlano() {
         val notif = Notification.Builder(this, CANAL_OUVIR)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("JARVIS em segundo plano")
@@ -55,12 +70,12 @@ class JarvisOuvidoService : Service() {
             .setContentIntent(abrirApp(2, false))
             .build()
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(ID_OUVIR, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            var tipos = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (capturando) tipos = tipos or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            startForeground(ID_OUVIR, notif, tipos)
         } else {
             startForeground(ID_OUVIR, notif)
         }
-        if (manager == null && !tela) ligar()
-        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -100,10 +115,22 @@ class JarvisOuvidoService : Service() {
     }
 
     private fun aoOuvirJarvis() {
-        if (tela) return
+        if (tela || sessao != null) return
         val agora = System.currentTimeMillis()
         if (agora - ultimoAlerta < 5_000L) return
         ultimoAlerta = agora
+        if (Settings.canDrawOverlays(this)) {
+            Thread {
+                pausar()
+                val nova = NucleoSessao(this) {
+                    sessao = null
+                    if (!tela) retomar()
+                }
+                sessao = nova
+                nova.iniciar()
+            }.start()
+            return
+        }
         val abrir = abrirApp(3, true)
         val nm = getSystemService(NotificationManager::class.java)
         val alerta = Notification.Builder(this, CANAL_ALERTA)

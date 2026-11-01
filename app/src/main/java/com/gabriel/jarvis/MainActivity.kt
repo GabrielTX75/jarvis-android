@@ -212,6 +212,13 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }
             return true
         }
+        @JavascriptInterface fun overlayPermitida(): Boolean = Settings.canDrawOverlays(this@MainActivity)
+        @JavascriptInterface fun abrirPermissaoOverlay() {
+            runOnUiThread {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
         @JavascriptInterface fun clearSecrets(): Boolean =
             try { secretPrefs.edit().clear().commit() } catch (e: Exception) { false }
         @JavascriptInterface fun setSecret(name: String, value: String): Boolean {

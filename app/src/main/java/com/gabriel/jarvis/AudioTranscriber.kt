@@ -29,6 +29,8 @@ object AudioTranscriber {
             { _ -> loading = false; onReady(false) })
     }
 
+    fun modelo(): Model? = model
+
     fun newestVoiceNote(sinceMs: Long): File? {
         val base = android.os.Environment.getExternalStorageDirectory()
         val pastas = listOf(
