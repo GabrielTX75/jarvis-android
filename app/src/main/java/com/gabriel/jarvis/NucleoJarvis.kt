@@ -213,34 +213,90 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             encerrar()
             return
         }
-        // Comandos: pesquisa, código (sempre vai ao Pydroid 3) e abrir app. Código vem antes de abrir,
-        // porque "abre o pydroid e gera código..." já inclui a abertura.
-        Regex("^(?:jarvis\\s+)?(?:pesquise|pesquisa|pesquisar|procure|procura|busque|busca)\\s+(.+)$").find(t)?.let {
-            definir(1)
-            falar(Pesquisa.buscar(ctx, it.groupValues[1]))
-            return
-        }
-        Regex("(?:gera|gere|gerar|cria|crie|criar|faz|faca|escreve|escreva|escrever)\\s+(?:um|uma|o|a)?\\s*(?:codigo|programa|script)\\s*(?:de|do|da|para|em)?\\s*(.+)").find(t)?.let {
-            gerarCodigoNoPydroid(it.groupValues[1])
-            return
-        }
-        Regex("^(?:jarvis\\s+)?(?:abra|abrir|abre|inicie|iniciar)\\s+(.+)$").find(t)?.let {
-            definir(1)
-            val alvo = it.groupValues[1].replace(Regex("^(o|a|os|as|um|uma)\\s+"), "").trim()
-            falar(AbrirApp.abrir(ctx, alvo).mensagem)
-            return
-        }
-        var imagem: String? = null
         definir(1)
-        if (t.contains("tela")) {
-            imagem = pegarTela()
-            if (imagem == null) {
-                falar("Não consegui ver sua tela agora. Confira se a permissão foi concedida.")
-                return
-            }
+        val comando = Acoes.reconhecer(t)
+        if (comando != null) {
+            executarAcao(comando.first, comando.second)
+            return
         }
-        val resposta = pedirIa(texto, imagem)
-        falar(resposta ?: "Não consegui pensar agora. Confira a IA nas configurações.")
+        if (t.contains("tela")) {
+            responderComTela(texto)
+            return
+        }
+        responder(pedirIa(texto, null))
+    }
+
+    /** Executa um comando (local ou pedido pela IA). */
+    private fun executarAcao(acao: String, args: JSONObject) {
+        when (acao) {
+            "pesquisar" -> {
+                definir(1)
+                falar(Pesquisa.buscar(ctx, args.optString("termo")))
+            }
+            "gerar_codigo" -> gerarCodigoNoPydroid(args.optString("pedido"))
+            "ler_tela" -> lerTela(args.optString("pergunta").ifBlank { "o que está na tela" })
+            "tocar" -> falar(tocarNaTela(args.optString("texto")))
+            else -> falar(Acoes.executar(ctx, acao, args))
+        }
+    }
+
+    /** Resposta da IA: JSON com "acao" executa; JSON com "fala" ou texto puro é falado. */
+    private fun responder(resposta: String?) {
+        if (resposta == null) {
+            falar("Não consegui pensar agora. Confira a IA nas configurações.")
+            return
+        }
+        val json = extrairJson(resposta)
+        if (json != null && json.has("acao")) {
+            executarAcao(json.optString("acao"), json.optJSONObject("args") ?: JSONObject())
+            return
+        }
+        falar(falaDe(resposta))
+    }
+
+    private fun falaDe(resposta: String): String {
+        val fala = extrairJson(resposta)?.optString("fala")?.trim().orEmpty()
+        return if (fala.isNotEmpty()) fala else resposta
+    }
+
+    private fun extrairJson(texto: String): JSONObject? {
+        val i = texto.indexOf('{')
+        val f = texto.lastIndexOf('}')
+        if (i < 0 || f <= i) return null
+        return try { JSONObject(texto.substring(i, f + 1)) } catch (e: Exception) { null }
+    }
+
+    /** Lê o texto da tela pela acessibilidade e responde a pergunta. Sem acessibilidade, usa a captura de tela. */
+    private fun lerTela(pergunta: String) {
+        val svc = JarvisAcessibilidade.ativa
+        if (svc == null) {
+            responderComTela(pergunta)
+            return
+        }
+        val conteudo = svc.lerTela()
+        if (conteudo == null) {
+            falar("Não encontrei texto na tela agora.")
+            return
+        }
+        definir(1)
+        val resposta = pedirIa("Texto visível na tela: $conteudo\n\nPergunta: $pergunta", null)
+        falar(if (resposta == null) "Não consegui pensar agora." else falaDe(resposta))
+    }
+
+    private fun tocarNaTela(alvo: String): String {
+        val svc = JarvisAcessibilidade.ativa ?: return "Ative a acessibilidade do JARVIS para eu tocar na tela."
+        return if (svc.tocar(alvo)) "Toquei em $alvo." else "Não encontrei $alvo na tela."
+    }
+
+    /** Captura a tela (pede permissão na primeira vez) e manda a imagem para a IA com a pergunta. */
+    private fun responderComTela(texto: String) {
+        definir(1)
+        val imagem = pegarTela()
+        if (imagem == null) {
+            falar("Não consegui ver sua tela agora. Confira se a permissão foi concedida.")
+            return
+        }
+        responder(pedirIa(texto, imagem))
     }
 
     /** Gera o código pedido, abre o Pydroid 3 e cola o código no campo de edição. */
@@ -390,7 +446,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
         val chave = Cofre.ler(ctx, "ai_key")
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content",
-            "Você é o JARVIS, um assistente pessoal falado. Responda em português do Brasil, em até 3 frases curtas, sem markdown e sem listas. Trate o usuário por senhor."))
+            Acoes.promptSistema))
         historico.takeLast(8).forEach { msgs.put(it) }
         val conteudo: Any = if (imagem == null) texto else JSONArray()
             .put(JSONObject().put("type", "text").put("text", texto))

@@ -10,9 +10,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Cola texto no campo editável do app que estiver na frente (ex.: Pydroid 3).
- * Só funciona depois que você liga o JARVIS em Configurações > Acessibilidade.
- * Não lê nem guarda nada da tela: só insere o texto pedido, e só no app indicado.
+ * Permite ao JARVIS, quando o senhor liga nas configurações de acessibilidade:
+ * - colar código no campo de edição do app na frente (ex.: Pydroid 3);
+ * - ler o texto visível da tela, para responder perguntas sobre ela;
+ * - tocar em um botão ou item pelo nome, quando o senhor pedir.
+ * Nada é guardado nem enviado para fora pelo serviço: o texto só segue para a IA quando o senhor pergunta.
  */
 class JarvisAcessibilidade : AccessibilityService() {
 
@@ -40,7 +42,7 @@ class JarvisAcessibilidade : AccessibilityService() {
         val raiz = rootInActiveWindow ?: return false
         if (raiz.packageName?.toString() != pacote) return false
         val campo = raiz.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
-            ?: acharEditavel(raiz)
+            ?: acharEditavel(raiz, 0)
             ?: return false
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, texto)
@@ -48,11 +50,54 @@ class JarvisAcessibilidade : AccessibilityService() {
         return campo.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
-    private fun acharEditavel(no: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    /** Texto visível na tela, para a IA ler. Null se não houver texto. */
+    fun lerTela(): String? {
+        val raiz = rootInActiveWindow ?: return null
+        val partes = ArrayList<String>()
+        coletar(raiz, partes, 0)
+        return partes.joinToString(" | ").take(2000).ifBlank { null }
+    }
+
+    /** Toca no item cujo texto contém [alvo]. Devolve true se tocou. */
+    fun tocar(alvo: String): Boolean {
+        val raiz = rootInActiveWindow ?: return false
+        val procurado = AbrirApp.normalizar(alvo)
+        if (procurado.isEmpty()) return false
+        val no = acharPorTexto(raiz, procurado, 0) ?: return false
+        var atual: AccessibilityNodeInfo? = no
+        while (atual != null) {
+            if (atual.isClickable) return atual.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            atual = atual.parent
+        }
+        return false
+    }
+
+    private fun acharEditavel(no: AccessibilityNodeInfo, prof: Int): AccessibilityNodeInfo? {
+        if (prof > 30) return null
         if (no.isEditable && no.isVisibleToUser) return no
         for (i in 0 until no.childCount) {
             val filho = no.getChild(i) ?: continue
-            acharEditavel(filho)?.let { return it }
+            acharEditavel(filho, prof + 1)?.let { return it }
+        }
+        return null
+    }
+
+    private fun coletar(no: AccessibilityNodeInfo, saida: MutableList<String>, prof: Int) {
+        if (prof > 30 || saida.size > 300) return
+        val t = (no.text ?: no.contentDescription)?.toString()?.trim()
+        if (!t.isNullOrEmpty() && no.isVisibleToUser) saida.add(t)
+        for (i in 0 until no.childCount) {
+            no.getChild(i)?.let { coletar(it, saida, prof + 1) }
+        }
+    }
+
+    private fun acharPorTexto(no: AccessibilityNodeInfo, procurado: String, prof: Int): AccessibilityNodeInfo? {
+        if (prof > 30) return null
+        val t = (no.text ?: no.contentDescription)?.toString()
+        if (t != null && no.isVisibleToUser && AbrirApp.normalizar(t).contains(procurado)) return no
+        for (i in 0 until no.childCount) {
+            val filho = no.getChild(i) ?: continue
+            acharPorTexto(filho, procurado, prof + 1)?.let { return it }
         }
         return null
     }
