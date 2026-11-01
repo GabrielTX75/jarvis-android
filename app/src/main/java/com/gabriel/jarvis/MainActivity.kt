@@ -194,7 +194,6 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun picovoiceConfigurada(): Boolean = Cofre.ler(this@MainActivity, "picovoice_key").isNotEmpty()
         @JavascriptInterface fun ouvirSegundoPlanoAtivo(): Boolean = ouvirAtivo()
         @JavascriptInterface fun setOuvirSegundoPlano(on: Boolean): Boolean {
-            if (on && Cofre.ler(this@MainActivity, "picovoice_key").isEmpty()) return false
             getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", on).apply()
             runOnUiThread {
                 if (on) {
@@ -447,7 +446,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).getBoolean("ativo", false)
 
     private fun iniciarOuvirSeAtivo() {
-        if (!ouvirAtivo() || Cofre.ler(this, "picovoice_key").isEmpty()) return
+        if (!ouvirAtivo()) return
         try { ContextCompat.startForegroundService(this, Intent(this, JarvisOuvidoService::class.java)) } catch (_: Exception) {}
     }
 

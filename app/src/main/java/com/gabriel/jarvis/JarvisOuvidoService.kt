@@ -1,7 +1,5 @@
 package com.gabriel.jarvis
 
-import ai.picovoice.porcupine.Porcupine
-import ai.picovoice.porcupine.PorcupineManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,40 +8,46 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import org.json.JSONObject
+import org.vosk.Recognizer
+import java.util.Locale
 
 /**
- * Fica em segundo plano ouvindo a palavra "Jarvis" (Porcupine, offline).
- * Quando ouve, mostra um alerta de tela cheia que abre o app.
+ * Fica em segundo plano ouvindo a palavra "Jarvis" (Vosk, offline).
+ * Quando ouve, abre o núcleo flutuante (ou um alerta, se não houver permissão de sobreposição).
  */
 class JarvisOuvidoService : Service() {
-    private var manager: PorcupineManager? = null
     private var ultimoAlerta = 0L
     private var sessao: NucleoSessao? = null
     private var capturando = false
+    @Volatile private var vivo = false
+    private var escuta: Thread? = null
 
     companion object {
         private const val CANAL_OUVIR = "jarvis_ouvir"
         private const val CANAL_ALERTA = "jarvis_alerta"
         private const val ID_OUVIR = 77
         private const val ID_ALERTA = 78
+        private val PADRAO_JARVIS = Regex("(jarvi|jarbi|javi|chavi|charvi|ja vi)s?")
         @Volatile private var instancia: JarvisOuvidoService? = null
         @Volatile private var tela = false
 
         /** Chamado pela tela: quando o app está visível, o microfone fica com a tela. */
         fun telaAtiva(ativa: Boolean) {
             tela = ativa
-            instancia?.let { if (ativa) it.pausar() else it.retomar() }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
         instancia = this
+        vivo = true
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CANAL_OUVIR, "JARVIS ouvindo", NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel(CANAL_ALERTA, "JARVIS chamando", NotificationManager.IMPORTANCE_HIGH))
@@ -51,7 +55,13 @@ class JarvisOuvidoService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         iniciarPrimeiroPlano()
-        if (manager == null && !tela && sessao == null) ligar()
+        if (escuta == null) {
+            AudioTranscriber.ensureModel(this) { ok ->
+                if (ok && escuta == null && vivo) {
+                    escuta = Thread { escutar() }.also { it.start() }
+                }
+            }
+        }
         return START_STICKY
     }
 
@@ -65,7 +75,7 @@ class JarvisOuvidoService : Service() {
         val notif = Notification.Builder(this, CANAL_OUVIR)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("JARVIS em segundo plano")
-            .setContentText("Sempre ouvindo. Diga \"Jarvis\" para abrir o app.")
+            .setContentText("Sempre ouvindo. Diga \"Jarvis\" para chamar.")
             .setOngoing(true)
             .setContentIntent(abrirApp(2, false))
             .build()
@@ -79,39 +89,53 @@ class JarvisOuvidoService : Service() {
     }
 
     override fun onDestroy() {
-        parar()
+        vivo = false
         instancia = null
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun ligar() {
-        val chave = Cofre.ler(this, "picovoice_key")
-        if (chave.isEmpty()) return
+    /** Ouve o microfone em pedaços e procura a palavra. Pausa enquanto o app ou uma conversa usa o microfone. */
+    private fun escutar() {
+        val modelo = AudioTranscriber.modelo() ?: return
+        val rec = Recognizer(modelo, 16000f)
+        val buf = ByteArray(3200)
+        var gravador: AudioRecord? = null
         try {
-            manager = PorcupineManager.Builder()
-                .setAccessKey(chave)
-                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
-                .build(applicationContext) { _ -> aoOuvirJarvis() }
-            manager?.start()
-        } catch (e: Exception) {
-            manager = null
+            while (vivo) {
+                if (tela || sessao != null || capturando) {
+                    gravador?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
+                    gravador = null
+                    rec.reset()
+                    Thread.sleep(500)
+                    continue
+                }
+                if (gravador == null) {
+                    val tamanho = maxOf(AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT), 8000)
+                    try {
+                        val g = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, tamanho)
+                        g.startRecording()
+                        gravador = g
+                    } catch (e: Exception) {
+                        Thread.sleep(2000)
+                        continue
+                    }
+                }
+                val n = gravador!!.read(buf, 0, buf.size)
+                if (n <= 0) continue
+                val fechou = rec.acceptWaveForm(buf, n)
+                val texto = if (fechou) JSONObject(rec.result).optString("text", "")
+                else JSONObject(rec.partialResult).optString("partial", "")
+                if (PADRAO_JARVIS.containsMatchIn(semAcento(texto))) {
+                    rec.reset()
+                    aoOuvirJarvis()
+                }
+            }
+        } finally {
+            gravador?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
+            rec.close()
         }
-    }
-
-    private fun parar() {
-        try { manager?.stop(); manager?.delete() } catch (_: Exception) {}
-        manager = null
-    }
-
-    private fun pausar() {
-        try { manager?.stop() } catch (_: Exception) {}
-    }
-
-    private fun retomar() {
-        if (manager == null) { ligar(); return }
-        try { manager?.start() } catch (_: Exception) {}
     }
 
     private fun aoOuvirJarvis() {
@@ -120,15 +144,9 @@ class JarvisOuvidoService : Service() {
         if (agora - ultimoAlerta < 5_000L) return
         ultimoAlerta = agora
         if (Settings.canDrawOverlays(this)) {
-            Thread {
-                pausar()
-                val nova = NucleoSessao(this) {
-                    sessao = null
-                    if (!tela) retomar()
-                }
-                sessao = nova
-                nova.iniciar()
-            }.start()
+            val nova = NucleoSessao(this) { sessao = null }
+            sessao = nova
+            nova.iniciar()
             return
         }
         val abrir = abrirApp(3, true)
@@ -142,8 +160,11 @@ class JarvisOuvidoService : Service() {
             .setAutoCancel(true)
             .build()
         nm.notify(ID_ALERTA, alerta)
-        try { abrir.send() } catch (_: Exception) {}
     }
+
+    private fun semAcento(x: String): String =
+        java.text.Normalizer.normalize(x, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT)
 
     private fun abrirApp(codigo: Int, wake: Boolean): PendingIntent {
         val i = Intent(this, MainActivity::class.java)
@@ -158,12 +179,12 @@ class JarvisOuvidoService : Service() {
 /** Leitura de segredos guardados criptografados (mesmo arquivo da tela de chaves). */
 object Cofre {
     fun ler(context: Context, nome: String): String = try {
-        val masterKey = MasterKey.Builder(context.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-        val p = EncryptedSharedPreferences.create(
+        val masterKey = androidx.security.crypto.MasterKey.Builder(context.applicationContext)
+            .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM).build()
+        val p = androidx.security.crypto.EncryptedSharedPreferences.create(
             context.applicationContext, "jarvis_segredos", masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
         p.getString(nome, "") ?: ""
     } catch (e: Exception) {
