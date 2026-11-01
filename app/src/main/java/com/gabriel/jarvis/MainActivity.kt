@@ -39,7 +39,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
 
     companion object {
         private const val REQ_AUDIO = 4102
-        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key")
+        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "pin_hash")
     }
 
     private val secretPrefs by lazy {
@@ -137,6 +137,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             if (name !in SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
         }
+        @JavascriptInterface fun clearSecrets(): Boolean =
+            try { secretPrefs.edit().clear().commit() } catch (e: Exception) { false }
         @JavascriptInterface fun setSecret(name: String, value: String): Boolean {
             if (name !in SECRET_NAMES || value.length > 4000) return false
             return try { secretPrefs.edit().putString(name, value).commit() } catch (e: Exception) { false }
