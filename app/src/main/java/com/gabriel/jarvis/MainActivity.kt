@@ -72,9 +72,6 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.addJavascriptInterface(NativeBridge(), "JarvisAndroid")
-        WhatsAppBridge.onMessage = { key, title, sender, text, isGroup ->
-            js("jarvisWhatsappMessage", "${JSONObjectQuote(key)}, ${JSONObjectQuote(title)}, ${JSONObjectQuote(sender)}, ${JSONObjectQuote(text)}, $isGroup")
-        }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
                 assetLoader.shouldInterceptRequest(request.url)
@@ -181,6 +178,14 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 }
                 js("jarvisAudioTranscript", "${JSONObjectQuote(requestId)}, ${result.first}, ${JSONObjectQuote(result.second)}")
             }.start()
+        }
+        @JavascriptInterface fun salvarWpp(auto: Boolean, nome: String, endpoint: String, model: String) {
+            getSharedPreferences("jarvis_wpp", MODE_PRIVATE).edit()
+                .putBoolean("auto", auto)
+                .putString("nome", nome.take(60))
+                .putString("endpoint", endpoint.take(300))
+                .putString("model", model.take(120))
+                .apply()
         }
         @JavascriptInterface fun clearSecrets(): Boolean =
             try { secretPrefs.edit().clear().commit() } catch (e: Exception) { false }
@@ -397,7 +402,6 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     override fun onResume() { super.onResume(); if (::webView.isInitialized) webView.evaluateJavascript("window.jarvisNativeResume && window.jarvisNativeResume()", null) }
     override fun onPause() { stopRecognition(); super.onPause() }
     override fun onDestroy() {
-        WhatsAppBridge.onMessage = null
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
         if (::webView.isInitialized) { webView.removeJavascriptInterface("JarvisAndroid"); webView.destroy() }
