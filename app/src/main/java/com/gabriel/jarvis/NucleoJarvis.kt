@@ -5,7 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -71,6 +75,66 @@ class PedirCapturaActivity : Activity() {
     }
 
     companion object { const val REQ = 5101 }
+}
+
+/** Núcleo flutuante: esfera dourada com anéis HUD e fragmentos girando. Modo 0 ouvindo, 1 pensando, 2 falando. */
+class OrbView(context: Context) : View(context) {
+    private val pincel = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ouro = Color.rgb(255, 180, 40)
+    private val claro = Color.rgb(255, 236, 170)
+    private val fundo = Color.rgb(40, 20, 0)
+    private var angulo = 0f
+    var modo: Int = 0
+        set(v) { field = v; invalidate() }
+    private val fragmentos = List(16) {
+        Pair(kotlin.random.Random.nextFloat() * 360f, 0.7f + kotlin.random.Random.nextFloat() * 0.5f)
+    }
+    private val animar = object : Runnable {
+        override fun run() {
+            angulo = (angulo + (if (modo == 1) 3.5f else 1.2f)) % 360f
+            invalidate()
+            postOnAnimation(this)
+        }
+    }
+
+    init { postOnAnimation(animar) }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(animar)
+        super.onDetachedFromWindow()
+    }
+
+    override fun onDraw(c: Canvas) {
+        super.onDraw(c)
+        val cx = width / 2f
+        val cy = height / 2f
+        val base = minOf(width, height) / 2f * 0.5f
+        val pulso = if (modo == 2) 0.06f * (1f + kotlin.math.sin(Math.toRadians(angulo * 6.0)).toFloat()) else 0f
+        val r = base * (1f + pulso)
+        pincel.style = Paint.Style.FILL
+        pincel.shader = RadialGradient(
+            cx - r * 0.35f, cy - r * 0.35f, r * 1.7f,
+            intArrayOf(claro, ouro, fundo, Color.BLACK), floatArrayOf(0f, 0.4f, 0.85f, 1f), Shader.TileMode.CLAMP
+        )
+        c.drawCircle(cx, cy, r, pincel)
+        pincel.shader = null
+        pincel.style = Paint.Style.STROKE
+        pincel.color = ouro
+        pincel.strokeWidth = r * 0.04f
+        for (i in 0 until 3) {
+            val rr = r * (1.25f + i * 0.22f)
+            val sentido = if (i % 2 == 0) 1f else -1f
+            val inicio = angulo * sentido * (0.6f + i * 0.5f)
+            for (k in 0 until 3) c.drawArc(cx - rr, cy - rr, cx + rr, cy + rr, inicio + k * 120f, 70f, false, pincel)
+        }
+        pincel.style = Paint.Style.FILL
+        pincel.color = claro
+        for ((a, d) in fragmentos) {
+            val ang = Math.toRadians((a + angulo * 0.7f).toDouble())
+            val rr = r * (1.1f + (d - 0.7f) * 0.9f)
+            c.drawCircle(cx + rr * kotlin.math.cos(ang).toFloat(), cy + rr * kotlin.math.sin(ang).toFloat(), r * 0.035f, pincel)
+        }
+    }
 }
 
 /** Uma conversa com o núcleo flutuante: ouve, pensa, responde falando e pode olhar a tela. */
@@ -148,6 +212,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             return
         }
         var imagem: String? = null
+        definir(1)
         if (t.contains("tela")) {
             imagem = pegarTela()
             if (imagem == null) {
@@ -276,21 +341,22 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         val t = tts ?: return
         if (!ttsPronto) return
         falando = true
+        definir(2)
         t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) {}
-            override fun onDone(id: String?) { falando = false }
-            override fun onError(id: String?) { falando = false }
+            override fun onDone(id: String?) { falando = false; definir(0) }
+            override fun onError(id: String?) { falando = false; definir(0) }
         })
         t.speak(texto.take(600), TextToSpeech.QUEUE_FLUSH, null, "jv-" + System.nanoTime())
     }
 
+    private fun definir(m: Int) {
+        main.post { (orb as? OrbView)?.modo = m }
+    }
+
     private fun mostrarOrb() {
-        val v = View(ctx)
-        v.background = GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.rgb(255, 200, 80), Color.rgb(200, 110, 0))
-        ).apply { shape = GradientDrawable.OVAL }
-        val tamanho = (ctx.resources.displayMetrics.density * 84).toInt()
+        val v = OrbView(ctx)
+        val tamanho = (ctx.resources.displayMetrics.density * 150).toInt()
         val params = WindowManager.LayoutParams(
             tamanho, tamanho,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
