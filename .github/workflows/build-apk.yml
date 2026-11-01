@@ -31,6 +31,7 @@ jobs:
           curl -fsSL -o /tmp/vosk-pt.zip https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
           unzip -q /tmp/vosk-pt.zip -d /tmp/vosk-pt
           mv /tmp/vosk-pt/vosk-model-small-pt-0.3 app/src/main/assets/model-pt
+          echo "vosk-model-small-pt-0.3" > app/src/main/assets/model-pt/uuid
 
       - name: Gerar o APK de depuração
         run: gradle :app:assembleDebug --no-daemon
