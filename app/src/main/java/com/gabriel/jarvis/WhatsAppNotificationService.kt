@@ -43,12 +43,12 @@ class WhatsAppNotificationService : NotificationListenerService() {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         var sender = title
         var text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
-        if (isGroup && Build.VERSION.SDK_INT >= 28) {
+        if (isGroup) {
             // Em grupos, pega o remetente e o texto da última mensagem, quando o Android fornecer.
-            val last = Notification.MessagingStyle.extractMessagingStyleFromNotification(n)?.messages?.lastOrNull()
+            val last = extras.getParcelableArray("android.messages")?.lastOrNull() as? android.os.Bundle
             if (last != null) {
-                val body = last.text?.toString()?.trim().orEmpty()
-                val name = last.person?.name?.toString()?.trim().orEmpty()
+                val body = last.getCharSequence("text")?.toString()?.trim().orEmpty()
+                val name = last.getCharSequence("sender")?.toString()?.trim().orEmpty()
                 if (body.isNotEmpty()) text = body
                 if (name.isNotEmpty()) sender = name
             }
