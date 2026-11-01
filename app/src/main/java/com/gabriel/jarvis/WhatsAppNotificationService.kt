@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
 object WhatsAppBridge {
     // chave da notificação -> ação de resposta (com o campo de texto)
     val replies = ConcurrentHashMap<String, Pair<Notification.Action, RemoteInput>>()
-    @Volatile var onMessage: ((String, String, String) -> Unit)? = null
+    @Volatile var onMessage: ((String, String, String, String, Boolean) -> Unit)? = null
 
     fun reply(context: Context, key: String, text: String): Boolean {
         val entry = replies[key] ?: return false
@@ -39,17 +39,26 @@ class WhatsAppNotificationService : NotificationListenerService() {
         val n = sbn.notification ?: return
         if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
         val extras = n.extras ?: return
-        // Grupos são ignorados para não responder em conversas coletivas.
         val isGroup = Build.VERSION.SDK_INT >= 28 && extras.getBoolean("android.isGroupConversation", false)
-        if (isGroup) return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        var sender = title
+        var text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        if (isGroup && Build.VERSION.SDK_INT >= 28) {
+            // Em grupos, pega o remetente e o texto da última mensagem, quando o Android fornecer.
+            val last = Notification.MessagingStyle.extractMessagingStyleFromNotification(n)?.messages?.lastOrNull()
+            if (last != null) {
+                val body = last.text?.toString()?.trim().orEmpty()
+                val name = last.person?.name?.toString()?.trim().orEmpty()
+                if (body.isNotEmpty()) text = body
+                if (name.isNotEmpty()) sender = name
+            }
+        }
         if (title.isEmpty() || text.isEmpty()) return
-        if (title.equals("Você", true) || title.equals("You", true)) return
+        if (sender.equals("Você", true) || sender.equals("You", true)) return
         val replyAction = n.actions?.firstOrNull { !it.remoteInputs.isNullOrEmpty() } ?: return
         val remote = replyAction.remoteInputs.first()
         WhatsAppBridge.replies[sbn.key] = Pair(replyAction, remote)
-        WhatsAppBridge.onMessage?.invoke(sbn.key, title, text)
+        WhatsAppBridge.onMessage?.invoke(sbn.key, title, sender, text, isGroup)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {

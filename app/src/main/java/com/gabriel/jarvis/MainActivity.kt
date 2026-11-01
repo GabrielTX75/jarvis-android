@@ -68,8 +68,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.addJavascriptInterface(NativeBridge(), "JarvisAndroid")
-        WhatsAppBridge.onMessage = { key, title, text ->
-            js("jarvisWhatsappMessage", "${JSONObjectQuote(key)}, ${JSONObjectQuote(title)}, ${JSONObjectQuote(text)}")
+        WhatsAppBridge.onMessage = { key, title, sender, text, isGroup ->
+            js("jarvisWhatsappMessage", "${JSONObjectQuote(key)}, ${JSONObjectQuote(title)}, ${JSONObjectQuote(sender)}, ${JSONObjectQuote(text)}, $isGroup")
         }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
