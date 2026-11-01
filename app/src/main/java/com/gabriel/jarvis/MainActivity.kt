@@ -424,9 +424,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         }
     }
 
-    override fun onResume() { super.onResume(); if (::webView.isInitialized) webView.evaluateJavascript("window.jarvisNativeResume && window.jarvisNativeResume()", null) }
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) webView.evaluateJavascript("window.jarvisNativeResume && window.jarvisNativeResume()", null)
         JarvisOuvidoService.telaAtiva(true)
         if (pendingWake && ::webView.isInitialized) { pendingWake = false; js("jarvisWake", "") }
+    }
     override fun onPause() { stopRecognition(); JarvisOuvidoService.telaAtiva(false); super.onPause() }
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
