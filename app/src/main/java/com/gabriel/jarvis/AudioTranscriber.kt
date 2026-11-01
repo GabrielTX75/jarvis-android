@@ -18,15 +18,30 @@ object AudioTranscriber {
     @Volatile private var model: Model? = null
     private var loading = false
 
+    /** Motivo da última falha ao carregar o modelo (mostrado na notificação). */
+    @Volatile var ultimoErro: String = ""
+
     /** Carrega o modelo uma vez. Chame na thread principal. */
     @Synchronized
     fun ensureModel(context: Context, onReady: (Boolean) -> Unit) {
         model?.let { onReady(true); return }
         if (loading) { onReady(false); return }
         loading = true
-        StorageService.unpack(context, "model-pt", "model",
-            { m -> model = m; loading = false; onReady(true) },
-            { _ -> loading = false; onReady(false) })
+        try {
+            StorageService.unpack(context, "model-pt", "model",
+                { m -> model = m; loading = false; ultimoErro = ""; onReady(true) },
+                { e -> loading = false; ultimoErro = e.toString(); onReady(false) })
+        } catch (e: Throwable) {
+            loading = false
+            ultimoErro = e.toString()
+            onReady(false)
+        }
+    }
+
+    /** Libera a flag de carregamento caso o retorno nunca tenha chegado. */
+    @Synchronized
+    fun cancelarCarga() {
+        if (model == null) loading = false
     }
 
     fun modelo(): Model? = model

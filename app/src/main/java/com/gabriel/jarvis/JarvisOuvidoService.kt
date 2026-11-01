@@ -68,7 +68,9 @@ class JarvisOuvidoService : Service() {
                     Handler(Looper.getMainLooper()).post { AudioTranscriber.ensureModel(this) { pronto.complete(it) } }
                     try { pronto.get(60, TimeUnit.SECONDS) } catch (_: Exception) {}
                     if (AudioTranscriber.modelo() == null) {
-                        atualizarStatus("Modelo de voz não carregou. Tentando de novo…", true)
+                        AudioTranscriber.cancelarCarga()
+                        val motivo = AudioTranscriber.ultimoErro.take(120)
+                        atualizarStatus("Modelo de voz não carregou: " + (if (motivo.isEmpty()) "sem detalhe" else motivo) + ". Tentando de novo…", true)
                         Thread.sleep(3000)
                     }
                     tentativas++
