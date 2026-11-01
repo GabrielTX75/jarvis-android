@@ -43,6 +43,10 @@ object Acoes {
         "- digitar {\"texto\": \"...\"}: escreve o texto no campo de edição que está ativo na tela.",
         "- lembrar {\"texto\": \"...\"}: guarda um fato que o senhor pediu para lembrar.",
         "- esquecer {}: apaga os fatos guardados.",
+        "- organizar_downloads {}: organiza os arquivos soltos da pasta Downloads por tipo (sem apagar nada).",
+        "- desfazer_organizacao {}: desfaz a última organização dos Downloads.",
+        "- personalidade {\"nome\": \"brincalhao\", \"malandro\", \"serio\" ou \"normal\"}: muda o jeito de responder.",
+        "- trocar_voz {}: troca para a próxima voz em português instalada no aparelho.",
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
@@ -55,7 +59,7 @@ object Acoes {
         val memoria = if (fatos.isEmpty()) "" else "\n\nFatos que o senhor pediu para lembrar:\n" + fatos.joinToString("\n") { "- $it" }
         return "Você é o JARVIS, um assistente pessoal falado que controla o celular do senhor. " +
             "Responda em português do Brasil, em até 3 frases curtas, sem markdown e sem listas. " +
-            "Trate o usuário por senhor.\n\n" + catalogo + memoria
+            "Trate o usuário por senhor.\n\n" + estilo(ctx) + catalogo + memoria
     }
 
     private fun fatos(ctx: Context): List<String> = try {
@@ -81,6 +85,9 @@ object Acoes {
             "configuracoes" -> configuracoes(ctx, args.optString("tela"))
             "lembrar" -> lembrar(ctx, args.optString("texto"))
             "esquecer" -> esquecer(ctx)
+            "organizar_downloads" -> Organizador.organizar(ctx)
+            "desfazer_organizacao" -> Organizador.desfazer(ctx)
+            "personalidade" -> personalidade(ctx, args.optString("nome"))
             else -> "Ainda não sei fazer isso."
         }
     } catch (e: Exception) {
@@ -113,6 +120,15 @@ object Acoes {
         if (Regex("\\bque dia\\b|\\bqual (e )?a data\\b|\\bque data\\b").containsMatchIn(t)) return Pair("data", obj())
         Regex("^(?:me )?(?:leve|levar|navegue|navegar|como chego|rota para|rota)\\s+(?:ate |para |pra |a |ao )?(.+)$").find(t)
             ?.let { return Pair("navegar", obj("destino" to it.groupValues[1])) }
+        Regex("\\b(modo|personalidade|seja) (brincalhao|malandro|serio|normal)\\b").find(t)
+            ?.let { return Pair("personalidade", obj("nome" to it.groupValues[2])) }
+        if (Regex("\\btroca (a )?voz\\b|\\bmuda (a )?voz\\b").containsMatchIn(t)) return Pair("trocar_voz", obj())
+        if (Regex("\\b(organiza|organize|organizar) (os )?downloads\\b").containsMatchIn(t)) {
+            return Pair("organizar_downloads", obj())
+        }
+        if (Regex("\\bdesfaz(er)? (a )?organizacao\\b|\\bdesfaz(er)? (os )?downloads\\b").containsMatchIn(t)) {
+            return Pair("desfazer_organizacao", obj())
+        }
         Regex("^(?:jarvis\\s+)?(?:lembre|lembra|lembrar|guarde|anote)(?: que)?\\s+(.+)$").find(t)
             ?.let { return Pair("lembrar", obj("texto" to it.groupValues[1])) }
         Regex("^(?:jarvis\\s+)?(?:abra|abrir|abre|inicie|iniciar)\\s+(.+)$").find(t)
@@ -223,6 +239,25 @@ object Acoes {
         if (texto.isBlank()) return "Qual mensagem o senhor quer enviar?"
         val url = "https://wa.me/" + digitos(args.optString("numero")) + "?text=" + Uri.encode(texto)
         return abrir(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), "Abri o WhatsApp com a mensagem pronta. Confirme o envio.")
+    }
+
+    private const val PERSONALIDADE = "jarvis_personalidade"
+
+    /** Instrução de estilo para a IA, conforme o modo escolhido pelo senhor. */
+    private fun estilo(ctx: Context): String {
+        val nome = ctx.getSharedPreferences(PERSONALIDADE, Context.MODE_PRIVATE).getString("nome", "normal")
+        return when (nome) {
+            "brincalhao" -> "\n\nEstilo: bem-humorado e leve, com uma piada curta quando couber.\n\n"
+            "malandro" -> "\n\nEstilo: descontraído e malandro, com gírias leves do Brasil.\n\n"
+            "serio" -> "\n\nEstilo: formal, direto e objetivo.\n\n"
+            else -> "\n\n"
+        }
+    }
+
+    private fun personalidade(ctx: Context, nome: String): String {
+        val valor = if (nome == "brincalhao" || nome == "malandro" || nome == "serio") nome else "normal"
+        ctx.getSharedPreferences(PERSONALIDADE, Context.MODE_PRIVATE).edit().putString("nome", valor).apply()
+        return "Modo " + valor + " ativado, senhor."
     }
 
     private fun lembrar(ctx: Context, texto: String): String {

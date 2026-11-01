@@ -86,6 +86,8 @@ class OrbView(context: Context) : View(context) {
     private val claro = Color.rgb(255, 236, 170)
     private val fundo = Color.rgb(40, 20, 0)
     private var angulo = 0f
+    /** Nível do microfone (0 a 1): faz a esfera pulsar enquanto o senhor fala. */
+    var nivel: Float = 0f
     var modo: Int = 0
         set(v) { field = v; invalidate() }
     private val fragmentos = List(16) {
@@ -112,7 +114,8 @@ class OrbView(context: Context) : View(context) {
         val cy = height / 2f
         val base = minOf(width, height) / 2f * 0.5f
         val pulso = if (modo == 2) 0.06f * (1f + kotlin.math.sin(Math.toRadians(angulo * 6.0)).toFloat()) else 0f
-        val r = base * (1f + pulso)
+        val reagindo = if (modo == 0) nivel * 0.18f else 0f
+        val r = base * (1f + pulso + reagindo)
         pincel.style = Paint.Style.FILL
         pincel.shader = RadialGradient(
             cx - r * 0.35f, cy - r * 0.35f, r * 1.7f,
@@ -160,6 +163,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             if (st == TextToSpeech.SUCCESS) {
                 val r = tts?.setLanguage(Locale("pt", "BR"))
                 ttsPronto = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED
+                aplicarVozSalva()
             }
         }
         AudioTranscriber.ensureModel(ctx) { ok ->
@@ -187,6 +191,8 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         while (ativa) {
             val n = gravador.read(buf, 0, buf.size)
             if (n <= 0) continue
+            val nivelAgora = nivelDe(buf, n)
+            main.post { (orb as? OrbView)?.nivel = nivelAgora }
             if (falando) { rec.reset(); ultimo = System.currentTimeMillis(); continue }
             if (rec.acceptWaveForm(buf, n)) {
                 val texto = JSONObject(rec.result).optString("text", "").trim()
@@ -236,6 +242,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             "gerar_codigo" -> gerarCodigoNoPydroid(args.optString("pedido"))
             "ler_tela" -> lerTela(args.optString("pergunta").ifBlank { "o que está na tela" })
             "tocar" -> falar(tocarNaTela(args.optString("texto")))
+            "trocar_voz" -> trocarVoz()
             "digitar" -> falar(digitarNaTela(args.optString("texto")))
             else -> falar(Acoes.executar(ctx, acao, args))
         }
@@ -306,6 +313,49 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         responder(pedirIa(texto, imagem))
     }
 
+    /** Volume do microfone em um pedaço de áudio PCM 16 bits, de 0 a 1. */
+    private fun nivelDe(buf: ByteArray, n: Int): Float {
+        var soma = 0.0
+        var amostras = 0
+        var i = 0
+        while (i + 1 < n) {
+            val s = ((buf[i + 1].toInt() shl 8) or (buf[i].toInt() and 0xff)).toShort().toInt()
+            soma += (s * s).toDouble()
+            amostras++
+            i += 2
+        }
+        if (amostras == 0) return 0f
+        val rms = Math.sqrt(soma / amostras) / 32768.0
+        return minOf(1.0, rms * 5.0).toFloat()
+    }
+
+    /** Vozes em português instaladas no aparelho, em ordem fixa. */
+    private fun vozesPt(): List<android.speech.tts.Voice> = try {
+        tts?.voices?.filter { it.locale.language == "pt" }?.sortedBy { it.name } ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** Aplica a voz escolhida antes, se ainda existir no aparelho. */
+    private fun aplicarVozSalva() {
+        val indice = ctx.getSharedPreferences("jarvis_voz", Context.MODE_PRIVATE).getInt("indice", -1)
+        val vozes = vozesPt()
+        if (indice >= 0 && indice < vozes.size) tts?.voice = vozes[indice]
+    }
+
+    private fun trocarVoz() {
+        val vozes = vozesPt()
+        if (tts == null || vozes.isEmpty()) {
+            falar("Não encontrei outras vozes em português neste aparelho.")
+            return
+        }
+        val prefs = ctx.getSharedPreferences("jarvis_voz", Context.MODE_PRIVATE)
+        val proxima = (prefs.getInt("indice", -1) + 1) % vozes.size
+        tts?.voice = vozes[proxima]
+        prefs.edit().putInt("indice", proxima).apply()
+        falar("Voz trocada, senhor.")
+    }
+
     /** Gera o código pedido, abre o Pydroid 3 e cola o código no campo de edição. */
     private fun gerarCodigoNoPydroid(pedidoBruto: String) {
         val pedido = pedidoBruto.replace(Regex("\\s+(no|na|em|pra|para)\\s+pydroid.*$"), "").trim()
@@ -327,9 +377,10 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             falar("Não encontrei o Pydroid 3 instalado. Copiei o código para você colar.")
             return
         }
+        val salvo = Organizador.salvarCodigo(codigo)
         Thread.sleep(1500)
         if (JarvisAcessibilidade.ativa != null && colarNoApp(pacote, codigo)) {
-            falar("Código colocado no Pydroid 3, senhor.")
+            falar("Código colocado no Pydroid 3, senhor." + (if (salvo) " Guardei uma cópia em Downloads, na pasta JARVIS." else ""))
             return
         }
         copiar(codigo)
