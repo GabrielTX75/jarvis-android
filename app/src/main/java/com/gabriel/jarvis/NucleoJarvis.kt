@@ -1,6 +1,8 @@
 package com.gabriel.jarvis
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -205,10 +207,27 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
     }
 
     private fun processar(texto: String) {
-        val t = semAcento(texto)
+        val t = semAcento(texto).trim()
         if (Regex("\\b(tchau|encerrar|encerra|fechar|ate logo)\\b").containsMatchIn(t)) {
             falar("Até logo, senhor.")
             encerrar()
+            return
+        }
+        // Comandos: pesquisa, código (sempre vai ao Pydroid 3) e abrir app. Código vem antes de abrir,
+        // porque "abre o pydroid e gera código..." já inclui a abertura.
+        Regex("^(?:jarvis\\s+)?(?:pesquise|pesquisa|pesquisar|procure|procura|busque|busca)\\s+(.+)$").find(t)?.let {
+            definir(1)
+            falar(Pesquisa.buscar(ctx, it.groupValues[1]))
+            return
+        }
+        Regex("(?:gera|gere|gerar|cria|crie|criar|faz|faca|escreve|escreva|escrever)\\s+(?:um|uma|o|a)?\\s*(?:codigo|programa|script)\\s*(?:de|do|da|para|em)?\\s*(.+)").find(t)?.let {
+            gerarCodigoNoPydroid(it.groupValues[1])
+            return
+        }
+        Regex("^(?:jarvis\\s+)?(?:abra|abrir|abre|inicie|iniciar)\\s+(.+)$").find(t)?.let {
+            definir(1)
+            val alvo = it.groupValues[1].replace(Regex("^(o|a|os|as|um|uma)\\s+"), "").trim()
+            falar(AbrirApp.abrir(ctx, alvo).mensagem)
             return
         }
         var imagem: String? = null
@@ -222,6 +241,74 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         }
         val resposta = pedirIa(texto, imagem)
         falar(resposta ?: "Não consegui pensar agora. Confira a IA nas configurações.")
+    }
+
+    /** Gera o código pedido, abre o Pydroid 3 e cola o código no campo de edição. */
+    private fun gerarCodigoNoPydroid(pedidoBruto: String) {
+        val pedido = pedidoBruto.replace(Regex("\\s+(no|na|em|pra|para)\\s+pydroid.*$"), "").trim()
+        if (pedido.isEmpty()) {
+            falar("Diga qual código o senhor quer.")
+            return
+        }
+        definir(1)
+        falar("Gerando o código, senhor.")
+        val codigo = if (pedido.contains("ola mundo")) Codigo.OLA_MUNDO else pedirCodigo(pedido)
+        if (codigo.isNullOrBlank()) {
+            falar("Não consegui gerar o código. Confira o endereço da IA nas configurações.")
+            return
+        }
+        val pydroid = AbrirApp.abrir(ctx, "pydroid 3")
+        val pacote = pydroid.pacote
+        if (!pydroid.ok || pacote == null) {
+            copiar(codigo)
+            falar("Não encontrei o Pydroid 3 instalado. Copiei o código para você colar.")
+            return
+        }
+        Thread.sleep(1500)
+        if (JarvisAcessibilidade.ativa != null && colarNoApp(pacote, codigo)) {
+            falar("Código colocado no Pydroid 3, senhor.")
+            return
+        }
+        copiar(codigo)
+        falar(
+            if (JarvisAcessibilidade.ativa == null)
+                "Copiei o código. Para eu colar sozinho, ligue a acessibilidade do JARVIS nas configurações."
+            else "Não achei o campo de código. Copiei o código, é só colar no Pydroid."
+        )
+    }
+
+    /** Tenta colar por alguns segundos, enquanto o Pydroid abre e mostra o campo. */
+    private fun colarNoApp(pacote: String, codigo: String): Boolean {
+        val svc = JarvisAcessibilidade.ativa ?: return false
+        val limite = System.currentTimeMillis() + 8_000L
+        while (System.currentTimeMillis() < limite) {
+            if (svc.colar(pacote, codigo)) return true
+            Thread.sleep(400)
+        }
+        return false
+    }
+
+    private fun copiar(texto: String) {
+        main.post {
+            try {
+                val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cb.setPrimaryClip(ClipData.newPlainText("JARVIS", texto))
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Pede o código ao servidor de IA configurado (o mesmo das configurações). */
+    private fun pedirCodigo(pedido: String): String? {
+        val cfg = servico.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE)
+        val endpoint = cfg.getString("endpoint", "") ?: ""
+        val modelo = cfg.getString("model", "") ?: ""
+        if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
+        val msgs = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", Codigo.promptSistema))
+            .put(JSONObject().put("role", "user").put("content", pedido))
+        val corpo = JSONObject().put("model", modelo).put("stream", false).put("messages", msgs)
+        val resposta = chamarIa(endpoint, Cofre.ler(ctx, "ai_key"), corpo) ?: return null
+        return Codigo.limpar(resposta).takeIf { it.isNotEmpty() }
     }
 
     private fun pegarTela(): String? {

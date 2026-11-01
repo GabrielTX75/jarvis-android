@@ -102,29 +102,14 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun platform(): String = "android-native"
         @JavascriptInterface fun openAppByName(query: String, requestId: String) {
             runOnUiThread {
-                val wanted = normalizeAppName(query)
-                val pm = packageManager
-                val launchables = pm.queryIntentActivities(
-                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
-                )
-                val named = launchables.map { Pair(normalizeAppName(it.loadLabel(pm).toString()), it.activityInfo.packageName) }
-                val match = named.firstOrNull { it.first == wanted }
-                    ?: named.firstOrNull { wanted.isNotEmpty() && it.first.contains(wanted) }
-                if (match == null) {
-                    actionResult(requestId, false, "Não encontrei nenhum aplicativo chamado $query.")
-                    return@runOnUiThread
-                }
-                try {
-                    val launch = pm.getLaunchIntentForPackage(match.second)
-                    if (launch == null) actionResult(requestId, false, "Esse aplicativo não pode ser aberto.")
-                    else {
-                        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(launch)
-                        actionResult(requestId, true, match.first + " aberto.")
-                    }
-                } catch (_: Exception) {
-                    actionResult(requestId, false, "O Android não conseguiu abrir esse aplicativo.")
-                }
+                val r = AbrirApp.abrir(this@MainActivity, query)
+                actionResult(requestId, r.ok, r.mensagem)
+            }
+        }
+        @JavascriptInterface fun acessibilidadeLigada(): Boolean = JarvisAcessibilidade.ligada(this@MainActivity)
+        @JavascriptInterface fun abrirAcessibilidade() {
+            runOnUiThread {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
         @JavascriptInterface fun replyWhatsapp(key: String, text: String): Boolean =
@@ -346,10 +331,6 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     private fun JSONObjectQuote(value: String): String = org.json.JSONObject.quote(value)
-    private fun normalizeAppName(s: String): String =
-        java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT).trim()
-
     override fun onInit(status: Int) {
         ttsInitDone = true
         val engine = tts

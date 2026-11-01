@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="acessibilidade_descricao">Permite que o JARVIS cole o código gerado no campo de texto do Pydroid 3. Não guarda nem envia o conteúdo da tela.</string>
+</resources>
