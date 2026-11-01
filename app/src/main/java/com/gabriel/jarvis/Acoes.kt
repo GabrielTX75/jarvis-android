@@ -47,6 +47,10 @@ object Acoes {
         "- desfazer_organizacao {}: desfaz a última organização dos Downloads.",
         "- personalidade {\"nome\": \"brincalhao\", \"malandro\", \"serio\" ou \"normal\"}: muda o jeito de responder.",
         "- trocar_voz {}: troca para a próxima voz em português instalada no aparelho.",
+        "- calcular {\"expressao\": \"...\"}: faz contas, porcentagens e raiz quadrada.",
+        "- anotar {\"texto\": \"...\"}: guarda uma anotação. ler_anotacoes {}: lê as últimas. apagar_anotacoes {}: apaga todas.",
+        "- lembrete {\"minutos\": n, \"texto\": \"...\"}: marca um lembrete no relógio daqui a n minutos.",
+        "- tocar_musica {\"termo\": \"...\"}: pede ao player de música do aparelho para tocar a busca.",
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
@@ -88,6 +92,12 @@ object Acoes {
             "organizar_downloads" -> Organizador.organizar(ctx)
             "desfazer_organizacao" -> Organizador.desfazer(ctx)
             "personalidade" -> personalidade(ctx, args.optString("nome"))
+            "calcular" -> Ferramentas.calcular(args.optString("expressao"))
+            "anotar" -> Ferramentas.anotar(ctx, args.optString("texto"))
+            "ler_anotacoes" -> Ferramentas.lerAnotacoes(ctx)
+            "apagar_anotacoes" -> Ferramentas.apagarAnotacoes(ctx)
+            "lembrete" -> Ferramentas.lembrete(ctx, args.optInt("minutos", 0), args.optString("texto"))
+            "tocar_musica" -> Ferramentas.tocarMusica(ctx, args.optString("termo"))
             else -> "Ainda não sei fazer isso."
         }
     } catch (e: Exception) {
@@ -100,6 +110,20 @@ object Acoes {
             ?.let { return Pair("pesquisar", obj("termo" to it.groupValues[1])) }
         Regex("(?:gera|gere|gerar|cria|crie|criar|faz|faca|escreve|escreva|escrever)\\s+(?:um|uma|o|a)?\\s*(?:codigo|programa|script)\\s*(?:de|do|da|para|em)?\\s*(.+)").find(t)
             ?.let { return Pair("gerar_codigo", obj("pedido" to it.groupValues[1])) }
+        Regex("^(?:jarvis\\s+)?(?:quanto (?:e|eh|da|de)|calcula|calcule|calcular)\\s+(?=.*\\d)(.+)$").find(t)
+            ?.let { return Pair("calcular", obj("expressao" to it.groupValues[1])) }
+        Regex("^(?:jarvis\\s+)?(?:anote|anota|anotar|registre)\\s+(.+)$").find(t)
+            ?.let { return Pair("anotar", obj("texto" to it.groupValues[1])) }
+        if (Regex("\\b(minhas|ver|le|leia|quais sao) (as )?(minhas )?anotacoes\\b|\\bo que (eu )?anotei\\b").containsMatchIn(t)) {
+            return Pair("ler_anotacoes", obj())
+        }
+        if (Regex("\\b(apaga|apague|limpa|limpe) (as )?anotacoes\\b").containsMatchIn(t)) {
+            return Pair("apagar_anotacoes", obj())
+        }
+        Regex("^(?:jarvis\\s+)?(?:me )?lembr[ae] (?:me )?(?:em|daqui a) (\\d+) minutos?,? (?:de |para |que )?(.+)$").find(t)
+            ?.let { return Pair("lembrete", obj("minutos" to (it.groupValues[1].toIntOrNull() ?: 0), "texto" to it.groupValues[2])) }
+        Regex("^(?:jarvis\\s+)?(?:toca|tocar)\\s+(?!no |na |em |o botao|a tela)(?:a |o )?(?:musica |musicas |som )?(.+)$").find(t)
+            ?.let { return Pair("tocar_musica", obj("termo" to it.groupValues[1])) }
         Regex("^(?:toque|toca|clique|clica|aperte)\\s+(?:no|na|em|em cima do|em cima da)?\\s*(.+)$").find(t)
             ?.let { return Pair("tocar", obj("texto" to it.groupValues[1])) }
         if (Regex("\\b(le|leia|ler|lista)\\b.*\\btela\\b|o que (tem|esta) na tela").containsMatchIn(t)) {
