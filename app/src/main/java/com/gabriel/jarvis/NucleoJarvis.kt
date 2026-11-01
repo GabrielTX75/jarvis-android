@@ -236,6 +236,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             "gerar_codigo" -> gerarCodigoNoPydroid(args.optString("pedido"))
             "ler_tela" -> lerTela(args.optString("pergunta").ifBlank { "o que está na tela" })
             "tocar" -> falar(tocarNaTela(args.optString("texto")))
+            "digitar" -> falar(digitarNaTela(args.optString("texto")))
             else -> falar(Acoes.executar(ctx, acao, args))
         }
     }
@@ -286,6 +287,12 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
     private fun tocarNaTela(alvo: String): String {
         val svc = JarvisAcessibilidade.ativa ?: return "Ative a acessibilidade do JARVIS para eu tocar na tela."
         return if (svc.tocar(alvo)) "Toquei em $alvo." else "Não encontrei $alvo na tela."
+    }
+
+    private fun digitarNaTela(texto: String): String {
+        val svc = JarvisAcessibilidade.ativa ?: return "Ative a acessibilidade do JARVIS para eu digitar."
+        if (texto.isBlank()) return "O que o senhor quer que eu digite?"
+        return if (svc.digitar(texto)) "Digitado." else "Não encontrei um campo de texto ativo."
     }
 
     /** Captura a tela (pede permissão na primeira vez) e manda a imagem para a IA com a pergunta. */
@@ -446,7 +453,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
         val chave = Cofre.ler(ctx, "ai_key")
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content",
-            Acoes.promptSistema))
+            Acoes.prompt(servico)))
         historico.takeLast(8).forEach { msgs.put(it) }
         val conteudo: Any = if (imagem == null) texto else JSONArray()
             .put(JSONObject().put("type", "text").put("text", texto))

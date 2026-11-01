@@ -50,6 +50,18 @@ class JarvisAcessibilidade : AccessibilityService() {
         return campo.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
+    /** Escreve [texto] no campo de edição ativo (substitui o conteúdo). */
+    fun digitar(texto: String): Boolean {
+        val raiz = rootInActiveWindow ?: return false
+        val campo = raiz.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+            ?: acharEditavel(raiz, 0)
+            ?: return false
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, texto.take(1000))
+        }
+        return campo.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
     /** Texto visível na tela, para a IA ler. Null se não houver texto. */
     fun lerTela(): String? {
         val raiz = rootInActiveWindow ?: return null

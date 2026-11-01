@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import android.provider.Settings
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -39,14 +40,28 @@ object Acoes {
         "- abrir_site {\"url\": \"https://...\"}: abre um site no navegador.",
         "- mensagem {\"numero\": \"...\", \"texto\": \"...\"}: abre o WhatsApp com a mensagem pronta (o senhor confirma o envio).",
         "- configuracoes {\"tela\": \"wifi\", \"bluetooth\", \"bateria\" ou \"geral\"}: abre as configurações.",
+        "- digitar {\"texto\": \"...\"}: escreve o texto no campo de edição que está ativo na tela.",
+        "- lembrar {\"texto\": \"...\"}: guarda um fato que o senhor pediu para lembrar.",
+        "- esquecer {}: apaga os fatos guardados.",
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
 
-    val promptSistema: String =
-        "Você é o JARVIS, um assistente pessoal falado que controla o celular do senhor. " +
-        "Responda em português do Brasil, em até 3 frases curtas, sem markdown e sem listas. " +
-        "Trate o usuário por senhor.\n\n" + catalogo
+    private const val MEMORIA = "jarvis_memoria"
+
+    /** Prompt do sistema, com os fatos que o senhor pediu para lembrar. */
+    fun prompt(ctx: Context): String {
+        val fatos = fatos(ctx)
+        val memoria = if (fatos.isEmpty()) "" else "\n\nFatos que o senhor pediu para lembrar:\n" + fatos.joinToString("\n") { "- $it" }
+        return "Você é o JARVIS, um assistente pessoal falado que controla o celular do senhor. " +
+            "Responda em português do Brasil, em até 3 frases curtas, sem markdown e sem listas. " +
+            "Trate o usuário por senhor.\n\n" + catalogo + memoria
+    }
+
+    private fun fatos(ctx: Context): List<String> = try {
+        val arr = JSONArray(ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).getString("fatos", "[]") ?: "[]")
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (e: Exception) { emptyList() }
 
     /** Executa uma ação simples e devolve a frase que deve ser falada. */
     fun executar(ctx: Context, acao: String, args: JSONObject): String = try {
@@ -64,6 +79,8 @@ object Acoes {
             "abrir_site" -> site(ctx, args.optString("url"))
             "mensagem" -> mensagem(ctx, args)
             "configuracoes" -> configuracoes(ctx, args.optString("tela"))
+            "lembrar" -> lembrar(ctx, args.optString("texto"))
+            "esquecer" -> esquecer(ctx)
             else -> "Ainda não sei fazer isso."
         }
     } catch (e: Exception) {
@@ -96,6 +113,8 @@ object Acoes {
         if (Regex("\\bque dia\\b|\\bqual (e )?a data\\b|\\bque data\\b").containsMatchIn(t)) return Pair("data", obj())
         Regex("^(?:me )?(?:leve|levar|navegue|navegar|como chego|rota para|rota)\\s+(?:ate |para |pra |a |ao )?(.+)$").find(t)
             ?.let { return Pair("navegar", obj("destino" to it.groupValues[1])) }
+        Regex("^(?:jarvis\\s+)?(?:lembre|lembra|lembrar|guarde|anote)(?: que)?\\s+(.+)$").find(t)
+            ?.let { return Pair("lembrar", obj("texto" to it.groupValues[1])) }
         Regex("^(?:jarvis\\s+)?(?:abra|abrir|abre|inicie|iniciar)\\s+(.+)$").find(t)
             ?.let {
                 val nome = it.groupValues[1].replace(Regex("^(o|a|os|as|um|uma)\\s+"), "").trim()
@@ -204,6 +223,20 @@ object Acoes {
         if (texto.isBlank()) return "Qual mensagem o senhor quer enviar?"
         val url = "https://wa.me/" + digitos(args.optString("numero")) + "?text=" + Uri.encode(texto)
         return abrir(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), "Abri o WhatsApp com a mensagem pronta. Confirme o envio.")
+    }
+
+    private fun lembrar(ctx: Context, texto: String): String {
+        val limpo = texto.trim().take(200)
+        if (limpo.isEmpty()) return "O que o senhor quer que eu lembre?"
+        val lista = (fatos(ctx) + limpo).takeLast(50)
+        ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).edit()
+            .putString("fatos", JSONArray(lista).toString()).apply()
+        return "Guardado, senhor."
+    }
+
+    private fun esquecer(ctx: Context): String {
+        ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).edit().remove("fatos").apply()
+        return "Esqueci o que o senhor me pediu para guardar."
     }
 
     private fun configuracoes(ctx: Context, tela: String): String {
