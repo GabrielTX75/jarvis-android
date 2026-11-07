@@ -106,6 +106,11 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 actionResult(requestId, r.ok, r.mensagem)
             }
         }
+        @JavascriptInterface fun versao(): String = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "desconhecida"
+        } catch (e: Exception) {
+            "desconhecida"
+        }
         @JavascriptInterface fun acessibilidadeLigada(): Boolean = JarvisAcessibilidade.ligada(this@MainActivity)
         @JavascriptInterface fun abrirAcessibilidade() {
             runOnUiThread {

@@ -1,0 +1,52 @@
+{
+  "versoes": [
+    {
+      "versao": "0.13.0",
+      "data": "2026-11-07",
+      "itens": [
+        "Tela Novidades nas configurações, com a versão instalada e o histórico de mudanças",
+        "Notas da release passam a vir da mensagem do commit"
+      ]
+    },
+    {
+      "versao": "0.12.0",
+      "data": "2026-11-01",
+      "itens": [
+        "Calculadora: contas, porcentagens e raiz quadrada por voz",
+        "Anotações: anotar, ler as últimas e apagar",
+        "Lembretes que chegam pelo relógio do celular",
+        "Tocar música pelo player do aparelho"
+      ]
+    },
+    {
+      "versao": "0.11.0",
+      "data": "2026-11-01",
+      "itens": [
+        "A esfera pulsa conforme o volume da sua voz",
+        "Personalidades: brincalhão, malandro, sério ou normal",
+        "Troca de voz em português instalada no aparelho",
+        "Organiza os Downloads por tipo, com opção de desfazer",
+        "Cópia do código gerado guardada em Downloads/JARVIS"
+      ]
+    },
+    {
+      "versao": "0.10.0",
+      "data": "2026-11-01",
+      "itens": [
+        "Ações no celular: bateria, hora, lanterna, volume, alarme, cronômetro, ligar, navegar, sites e WhatsApp com confirmação",
+        "Leitura e toque na tela pela acessibilidade",
+        "Memória de fatos: lembrar e esquecer",
+        "A IA responde em JSON quando precisa executar uma ação"
+      ]
+    },
+    {
+      "versao": "0.9.0",
+      "data": "2026-11-01",
+      "itens": [
+        "Colagem de código no Pydroid 3 pela acessibilidade",
+        "Pesquisa na web e abertura de apps pelo núcleo em segundo plano",
+        "Botão para ligar a acessibilidade nas configurações"
+      ]
+    }
+  ]
+}
