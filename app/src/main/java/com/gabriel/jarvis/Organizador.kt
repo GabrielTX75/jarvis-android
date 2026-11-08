@@ -89,6 +89,20 @@ object Organizador {
         }
     }
 
+    /** Cria o arquivo vazio onde o código longo vai sendo gravado. Null se não houver acesso. */
+    fun novoArquivoCodigo(): File? {
+        if (!temAcesso()) return null
+        return try {
+            val dir = File(pastaDownloads(), "JARVIS").apply { mkdirs() }
+            val nome = "codigo_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(Date()) + ".py"
+            val arq = destinoSemRepetir(dir, nome)
+            arq.createNewFile()
+            arq
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun destinoSemRepetir(dir: File, nome: String): File {
         var alvo = File(dir, nome)
         val base = nome.substringBeforeLast('.', nome)

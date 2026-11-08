@@ -82,13 +82,13 @@ object Codigo {
     const val LIMITE_COLAR = 60_000
 
     /** Quantas vezes o app pede a continuação quando o modelo para no meio do código. */
-    const val MAX_PARTES = 1000
+    const val MAX_PARTES = 100_000
 
     /** Limite de cada resposta do modelo, em tokens. O servidor pode aplicar um teto menor. */
     const val TOKENS_POR_PARTE = 8192
 
     /** Tempo máximo de geração. Depois disso, o que já foi escrito é salvo. */
-    const val TEMPO_MAXIMO_MS = 20 * 60_000L
+    const val TEMPO_MAXIMO_MS = 72L * 60 * 60_000L
 
     val promptSistema =
         "Você escreve código para o aplicativo Pydroid 3 (Python rodando no Android). " +
@@ -96,6 +96,9 @@ object Codigo {
         "Se o pedido for grande, escreva o código completo, sem resumir e sem usar reticências ou 'resto do código'. " +
         "Use Python, a não ser que o pedido diga outra linguagem. " +
         "O código deve ser completo, legível e com comentários curtos em português."
+
+    /** Remove cercas de markdown de uma parte, sem cortar espaços nas bordas (partes se encaixam). */
+    fun limparParte(texto: String): String = texto.replace(Regex("```[a-zA-Z0-9+#]*\\n?"), "")
 
     /** Remove cercas de markdown que alguns modelos colocam mesmo quando não devem. */
     fun limpar(texto: String): String =

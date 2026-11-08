@@ -1,6 +1,15 @@
 {
   "versoes": [
     {
+      "versao": "0.15.0",
+      "data": "2026-11-08",
+      "itens": [
+        "Código longo gerado em segundo plano, com limite de até 72 horas",
+        "Cada parte é gravada na hora, então nada se perde se o app fechar",
+        "Comandos: continua o código, como está o código e para o código"
+      ]
+    },
+    {
       "versao": "0.14.0",
       "data": "2026-11-08",
       "itens": [

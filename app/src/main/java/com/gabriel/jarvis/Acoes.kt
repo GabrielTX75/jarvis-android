@@ -51,6 +51,9 @@ object Acoes {
         "- anotar {\"texto\": \"...\"}: guarda uma anotação. ler_anotacoes {}: lê as últimas. apagar_anotacoes {}: apaga todas.",
         "- lembrete {\"minutos\": n, \"texto\": \"...\"}: marca um lembrete no relógio daqui a n minutos.",
         "- tocar_musica {\"termo\": \"...\"}: pede ao player de música do aparelho para tocar a busca.",
+        "- continuar_codigo {}: retoma a geração de um código longo que parou.",
+        "- status_codigo {}: diz em que parte está a geração do código.",
+        "- parar_codigo {}: interrompe a geração do código longo.",
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
@@ -110,6 +113,9 @@ object Acoes {
             ?.let { return Pair("pesquisar", obj("termo" to it.groupValues[1])) }
         Regex("(?:gera|gere|gerar|cria|crie|criar|faz|faca|escreve|escreva|escrever)\\s+(?:um|uma|o|a)?\\s*(?:codigo|programa|script)\\s*(?:de|do|da|para|em)?\\s*(.+)").find(t)
             ?.let { return Pair("gerar_codigo", obj("pedido" to it.groupValues[1])) }
+        if (Regex("\\b(continua|continue|retoma|retome) (o )?codigo\\b").containsMatchIn(t)) return Pair("continuar_codigo", obj())
+        if (Regex("\\b(como (esta|andamento|anda)|andamento) (o )?codigo\\b").containsMatchIn(t)) return Pair("status_codigo", obj())
+        if (Regex("\\b(para|pare|parar) (de gerar )?(o )?codigo\\b").containsMatchIn(t)) return Pair("parar_codigo", obj())
         Regex("^(?:jarvis\\s+)?(?:quanto (?:e|eh|da|de)|calcula|calcule|calcular)\\s+(?=.*\\d)(.+)$").find(t)
             ?.let { return Pair("calcular", obj("expressao" to it.groupValues[1])) }
         Regex("^(?:jarvis\\s+)?(?:anote|anota|anotar|registre)\\s+(.+)$").find(t)

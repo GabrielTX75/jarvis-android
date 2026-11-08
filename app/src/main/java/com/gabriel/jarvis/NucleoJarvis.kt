@@ -243,6 +243,12 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             "ler_tela" -> lerTela(args.optString("pergunta").ifBlank { "o que está na tela" })
             "tocar" -> falar(tocarNaTela(args.optString("texto")))
             "trocar_voz" -> trocarVoz()
+            "continuar_codigo" -> falar(GeradorCodigo.iniciar(ctx, null))
+            "status_codigo" -> falar(GeradorCodigo.status(ctx))
+            "parar_codigo" -> {
+                GeradorCodigo.parar()
+                falar("Vou parar a geração depois da parte atual.")
+            }
             "digitar" -> falar(digitarNaTela(args.optString("texto")))
             else -> falar(Acoes.executar(ctx, acao, args))
         }
@@ -313,6 +319,25 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         responder(pedirIa(texto, imagem))
     }
 
+    /**
+     * Gera o código pela IA em segundo plano e espera até 1 minuto. Se terminar, devolve o texto.
+     * Se ainda estiver gerando, avisa que continua em segundo plano e devolve null.
+     */
+    private fun obterCodigoLongo(pedido: String): String? {
+        val msg = GeradorCodigo.iniciar(ctx, pedido)
+        if (!GeradorCodigo.emAndamento()) {
+            falar(msg)
+            return null
+        }
+        val fim = System.currentTimeMillis() + 60_000L
+        while (GeradorCodigo.emAndamento() && System.currentTimeMillis() < fim) Thread.sleep(500)
+        if (GeradorCodigo.emAndamento()) {
+            falar("Estou gerando o código em segundo plano. Diga como está o código para ver o andamento.")
+            return null
+        }
+        return GeradorCodigo.textoAtual(ctx).takeIf { it.isNotBlank() }
+    }
+
     /** Volume do microfone em um pedaço de áudio PCM 16 bits, de 0 a 1. */
     private fun nivelDe(buf: ByteArray, n: Int): Float {
         var soma = 0.0
@@ -365,7 +390,8 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         }
         definir(1)
         falar("Gerando o código, senhor.")
-        val codigo = if (pedido.contains("ola mundo")) Codigo.OLA_MUNDO else pedirCodigo(pedido)
+        val olaMundo = pedido.contains("ola mundo")
+        val codigo = if (olaMundo) Codigo.OLA_MUNDO else obterCodigoLongo(pedido)
         if (codigo.isNullOrBlank()) {
             falar("Não consegui gerar o código. Confira o endereço da IA nas configurações.")
             return
@@ -377,7 +403,8 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             falar("Não encontrei o Pydroid 3 instalado. Copiei o código para você colar.")
             return
         }
-        val salvo = Organizador.salvarCodigo(codigo)
+        // Código longo já foi gravado em arquivo pelo gerador; o da frase "olá, mundo" grava agora.
+        val salvo = if (olaMundo) Organizador.salvarCodigo(codigo) else true
         if (codigo.length > Codigo.LIMITE_COLAR) {
             falar("O código ficou grande demais para colar. " + (if (salvo) "Salvei em Downloads, na pasta JARVIS." else "Não consegui salvar o arquivo."))
             return
