@@ -378,6 +378,10 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
             return
         }
         val salvo = Organizador.salvarCodigo(codigo)
+        if (codigo.length > Codigo.LIMITE_COLAR) {
+            falar("O código ficou grande demais para colar. " + (if (salvo) "Salvei em Downloads, na pasta JARVIS." else "Não consegui salvar o arquivo."))
+            return
+        }
         Thread.sleep(1500)
         if (JarvisAcessibilidade.ativa != null && colarNoApp(pacote, codigo)) {
             falar("Código colocado no Pydroid 3, senhor." + (if (salvo) " Guardei uma cópia em Downloads, na pasta JARVIS." else ""))
@@ -412,17 +416,58 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
     }
 
     /** Pede o código ao servidor de IA configurado (o mesmo das configurações). */
+    /** Pede o código ao servidor de IA. Se a resposta parar no meio, pede a continuação até acabar ou dar o tempo. */
     private fun pedirCodigo(pedido: String): String? {
         val cfg = servico.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE)
         val endpoint = cfg.getString("endpoint", "") ?: ""
         val modelo = cfg.getString("model", "") ?: ""
         if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
-        val msgs = JSONArray()
-            .put(JSONObject().put("role", "system").put("content", Codigo.promptSistema))
-            .put(JSONObject().put("role", "user").put("content", pedido))
-        val corpo = JSONObject().put("model", modelo).put("stream", false).put("messages", msgs)
-        val resposta = chamarIa(endpoint, Cofre.ler(ctx, "ai_key"), corpo) ?: return null
-        return Codigo.limpar(resposta).takeIf { it.isNotEmpty() }
+        val chave = Cofre.ler(ctx, "ai_key")
+        val saida = StringBuilder()
+        val inicio = System.currentTimeMillis()
+        for (parte in 1..Codigo.MAX_PARTES) {
+            if (System.currentTimeMillis() - inicio > Codigo.TEMPO_MAXIMO_MS) break
+            val mensagens = JSONArray()
+                .put(JSONObject().put("role", "system").put("content", Codigo.promptSistema))
+                .put(JSONObject().put("role", "user").put("content", pedido))
+            if (saida.isNotEmpty()) {
+                // Manda só o fim do que já foi escrito, para não estourar o contexto do modelo.
+                mensagens.put(JSONObject().put("role", "assistant").put("content", saida.toString().takeLast(3000)))
+                mensagens.put(JSONObject().put("role", "user").put("content", "Continue exatamente depois do trecho acima, sem repetir e sem explicar nada."))
+            }
+            val corpo = JSONObject()
+                .put("model", modelo)
+                .put("stream", false)
+                .put("max_tokens", Codigo.TOKENS_POR_PARTE)
+                .put("messages", mensagens)
+            val (texto, motivo) = chamarIaParcial(endpoint, chave, corpo) ?: break
+            if (texto.isEmpty()) break
+            saida.append(texto)
+            if (motivo != "length") break
+        }
+        if (saida.isEmpty()) return null
+        return Codigo.limpar(saida.toString()).takeIf { it.isNotEmpty() }
+    }
+
+    /** Como chamarIa, mas também devolve o motivo de parada: "stop" quando terminou, "length" quando cortou. */
+    private fun chamarIaParcial(endpoint: String, chave: String, corpo: JSONObject): Pair<String, String>? {
+        return try {
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15_000
+                readTimeout = 120_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                if (chave.isNotEmpty()) setRequestProperty("Authorization", "Bearer $chave")
+            }
+            conn.outputStream.use { it.write(corpo.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode !in 200..299) return null
+            val resp = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val escolha = resp.getJSONArray("choices").getJSONObject(0)
+            Pair(escolha.getJSONObject("message").getString("content"), escolha.optString("finish_reason", "stop"))
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun pegarTela(): String? {

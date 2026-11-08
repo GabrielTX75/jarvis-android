@@ -1,6 +1,14 @@
 {
   "versoes": [
     {
+      "versao": "0.14.0",
+      "data": "2026-11-08",
+      "itens": [
+        "Código grande: o app continua a resposta do modelo até terminar, por até 20 minutos",
+        "Código completo salvo em Downloads/JARVIS, mesmo quando é grande demais para colar"
+      ]
+    },
+    {
       "versao": "0.13.0",
       "data": "2026-11-07",
       "itens": [
