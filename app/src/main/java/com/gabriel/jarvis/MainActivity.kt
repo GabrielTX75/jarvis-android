@@ -111,6 +111,25 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         } catch (e: Exception) {
             "desconhecida"
         }
+        @JavascriptInterface fun codigos(): String = try {
+            GeradorCodigo.listar(this@MainActivity).toString()
+        } catch (e: Exception) {
+            "[]"
+        }
+        /** Copia o código de um arquivo de Downloads/JARVIS para a área de transferência. */
+        @JavascriptInterface fun copiarCodigo(caminho: String): Boolean = try {
+            val arq = java.io.File(caminho).canonicalFile
+            val pasta = Organizador.pastaCodigos().canonicalFile
+            if (!arq.path.startsWith(pasta.path + java.io.File.separator)) {
+                false
+            } else {
+                val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cb.setPrimaryClip(android.content.ClipData.newPlainText("JARVIS", arq.readText()))
+                true
+            }
+        } catch (e: Exception) {
+            false
+        }
         @JavascriptInterface fun acessibilidadeLigada(): Boolean = JarvisAcessibilidade.ligada(this@MainActivity)
         @JavascriptInterface fun abrirAcessibilidade() {
             runOnUiThread {

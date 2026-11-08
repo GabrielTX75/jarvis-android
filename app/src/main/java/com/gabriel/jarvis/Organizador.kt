@@ -89,6 +89,9 @@ object Organizador {
         }
     }
 
+    /** Pasta onde ficam os códigos gerados. */
+    fun pastaCodigos(): File = File(pastaDownloads(), "JARVIS")
+
     /** Cria o arquivo vazio onde o código longo vai sendo gravado. Null se não houver acesso. */
     fun novoArquivoCodigo(): File? {
         if (!temAcesso()) return null

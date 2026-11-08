@@ -10,6 +10,9 @@ import java.net.URL
 /**
  * Gera código longo em segundo plano. Cada parte é gravada no arquivo assim que chega,
  * então o que já foi escrito não se perde se o app for fechado. Dá para retomar depois.
+ *
+ * A porcentagem só existe quando o pedido tem uma meta de linhas ("faz com 3 mil linhas").
+ * Sem meta, o gerador mostra o total de linhas e para quando o modelo termina.
  */
 object GeradorCodigo {
     private const val PREFS = "jarvis_codigo"
@@ -32,32 +35,41 @@ object GeradorCodigo {
     /** Frase com o andamento, para falar. */
     fun status(ctx: Context): String {
         val p = prefs(ctx)
-        val partes = p.getInt("partes", 0)
         if (p.getString("pedido", null) == null) return "Não há código sendo gerado."
+        val linhas = p.getInt("linhas", 0)
+        val alvo = p.getInt("alvo", 0)
         val estado = when {
-            rodando -> "ainda sendo gerado"
+            rodando -> "sendo gerado"
             p.getString("estado", "") == "gerando" -> "interrompido. Diga continua o código para retomar"
             else -> p.getString("estado", "") ?: ""
         }
-        return "O código tem $partes partes escritas e está $estado."
+        val meta = if (alvo > 0) " de " + alvo + " linhas, " + (linhas * 100 / alvo).coerceAtMost(100) + " por cento" else ""
+        return "O código tem " + linhas + " linhas" + meta + ", e está " + estado + "."
     }
 
     /** Começa um código novo ([pedido] não nulo) ou retoma o último ([pedido] nulo). Devolve a frase para falar. */
     fun iniciar(ctx: Context, pedido: String?): String {
         if (rodando) return "Já estou gerando o código. Diga como está o código para ver o andamento."
         val p = prefs(ctx)
-        val endpoint = ctx.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE).getString("endpoint", "") ?: ""
+        val cfg = ctx.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE)
+        val endpoint = cfg.getString("endpoint", "") ?: ""
         if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) {
             return "Configure o endereço da IA nas configurações."
         }
-        val modelo = ctx.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE).getString("model", "") ?: ""
+        val modelo = cfg.getString("model", "") ?: ""
         val textoPedido: String
         val arq: File
         if (pedido != null) {
             textoPedido = pedido
             arq = Organizador.novoArquivoCodigo()
                 ?: return "Ative o acesso a todos os arquivos do JARVIS para eu salvar o código."
-            p.edit().putString("pedido", pedido).putString("arquivo", arq.absolutePath).putInt("partes", 0).apply()
+            p.edit()
+                .putString("pedido", pedido)
+                .putString("arquivo", arq.absolutePath)
+                .putInt("partes", 0)
+                .putInt("linhas", 0)
+                .putInt("alvo", alvoDoPedido(pedido))
+                .apply()
         } else {
             textoPedido = p.getString("pedido", null) ?: return "Não há código para continuar."
             val caminho = p.getString("arquivo", null) ?: return "Não encontrei o arquivo do código anterior."
@@ -72,10 +84,53 @@ object GeradorCodigo {
         return "Comecei a gerar o código."
     }
 
+    /** Lista os códigos guardados em Downloads/JARVIS, com linhas, porcentagem e se estão prontos. */
+    fun listar(ctx: Context): JSONArray {
+        val p = prefs(ctx)
+        val atual = p.getString("arquivo", null)
+        val alvoAtual = p.getInt("alvo", 0)
+        val concluido = p.getString("estado", "") == "concluido" && !rodando
+        val arr = JSONArray()
+        val arquivos = Organizador.pastaCodigos()
+            .listFiles { f -> f.isFile && f.name.endsWith(".py") }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+        for (f in arquivos) {
+            val ehAtual = f.absolutePath == atual
+            val linhas = try { f.readText().count { it == '\n' } } catch (e: Exception) { 0 }
+            val alvo = if (ehAtual) alvoAtual else 0
+            val pronto = if (ehAtual) concluido else true
+            val pct = when {
+                alvo > 0 -> (linhas * 100 / alvo).coerceAtMost(100)
+                pronto -> 100
+                else -> -1
+            }
+            arr.put(
+                JSONObject()
+                    .put("nome", f.name)
+                    .put("caminho", f.absolutePath)
+                    .put("linhas", linhas)
+                    .put("percentual", pct)
+                    .put("pronto", pronto && pct >= 100)
+            )
+        }
+        return arr
+    }
+
+    /** Meta de linhas no pedido, como "3 mil linhas" ou "500 linhas". 0 se não tiver meta. */
+    private fun alvoDoPedido(pedido: String): Int {
+        val m = Regex("(\\d[\\d.]*)\\s*(mil\\s+)?linhas").find(pedido.lowercase()) ?: return 0
+        val n = m.groupValues[1].replace(".", "").toLongOrNull() ?: return 0
+        val total = if (m.groupValues[2].isNotEmpty()) n * 1000 else n
+        return total.coerceAtMost(1_000_000L).toInt()
+    }
+
     private fun gerar(ctx: Context, endpoint: String, modelo: String, chave: String, pedido: String, arq: File) {
         val p = prefs(ctx)
         val inicio = System.currentTimeMillis()
+        val alvo = p.getInt("alvo", 0)
         var partes = p.getInt("partes", 0)
+        var linhas = p.getInt("linhas", 0)
         var cauda = try { arq.readText().takeLast(3000) } catch (e: Exception) { "" }
         var estado = "concluido"
         try {
@@ -112,10 +167,13 @@ object GeradorCodigo {
                 }
                 val (texto, motivo) = resposta
                 if (texto.isEmpty()) break
-                arq.appendText(Codigo.limparParte(texto))
+                val parte = Codigo.limparParte(texto)
+                arq.appendText(parte)
                 partes++
-                cauda = (cauda + texto).takeLast(3000)
-                p.edit().putInt("partes", partes).apply()
+                linhas += parte.count { it == '\n' }
+                cauda = (cauda + parte).takeLast(3000)
+                p.edit().putInt("partes", partes).putInt("linhas", linhas).apply()
+                if (alvo > 0 && linhas >= alvo) break
                 if (motivo != "length") break
             }
         } catch (e: Exception) {

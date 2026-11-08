@@ -1,6 +1,15 @@
 {
   "versoes": [
     {
+      "versao": "0.16.0",
+      "data": "2026-11-08",
+      "itens": [
+        "Porcentagem do código quando o pedido tem meta de linhas (ex.: 3 mil linhas)",
+        "Tela Meus códigos: lista os códigos salvos, com linhas e porcentagem",
+        "Botão Copiar código aparece quando o código fica pronto"
+      ]
+    },
+    {
       "versao": "0.15.0",
       "data": "2026-11-08",
       "itens": [
