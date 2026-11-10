@@ -1,6 +1,14 @@
 {
   "versoes": [
     {
+      "versao": "0.17.0",
+      "data": "2026-11-10",
+      "itens": [
+        "Código continua até a meta de linhas ou até o modelo escrever FIM_DO_CODIGO, em vez de parar quando o modelo termina cedo",
+        "A continuação informa quantas linhas ainda faltam"
+      ]
+    },
+    {
       "versao": "0.16.0",
       "data": "2026-11-08",
       "itens": [

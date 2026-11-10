@@ -133,6 +133,7 @@ object GeradorCodigo {
         var linhas = p.getInt("linhas", 0)
         var cauda = try { arq.readText().takeLast(3000) } catch (e: Exception) { "" }
         var estado = "concluido"
+        var vazias = 0
         try {
             while (true) {
                 if (pararPedido) {
@@ -153,7 +154,8 @@ object GeradorCodigo {
                 if (cauda.isNotEmpty()) {
                     // Manda só o fim do que já foi escrito, para não estourar o contexto do modelo.
                     msgs.put(JSONObject().put("role", "assistant").put("content", cauda))
-                    msgs.put(JSONObject().put("role", "user").put("content", "Continue exatamente depois do trecho acima, sem repetir e sem explicar nada."))
+                    val falta = if (alvo > 0) " Ainda faltam " + (alvo - linhas).coerceAtLeast(0) + " linhas." else ""
+                    msgs.put(JSONObject().put("role", "user").put("content", "Continue exatamente depois do trecho acima, sem repetir e sem explicar nada." + falta))
                 }
                 val corpo = JSONObject()
                     .put("model", modelo)
@@ -165,16 +167,23 @@ object GeradorCodigo {
                     estado = "parado por erro na IA"
                     break
                 }
-                val (texto, motivo) = resposta
-                if (texto.isEmpty()) break
-                val parte = Codigo.limparParte(texto)
+                val (texto, _) = resposta
+                val bruto = Codigo.limparParte(texto)
+                val terminou = bruto.contains("FIM_DO_CODIGO")
+                val parte = bruto.replace("FIM_DO_CODIGO", "")
+                if (parte.isBlank()) {
+                    vazias++
+                    if (vazias >= 3) break
+                    continue
+                }
+                vazias = 0
                 arq.appendText(parte)
                 partes++
                 linhas += parte.count { it == '\n' }
                 cauda = (cauda + parte).takeLast(3000)
                 p.edit().putInt("partes", partes).putInt("linhas", linhas).apply()
                 if (alvo > 0 && linhas >= alvo) break
-                if (motivo != "length") break
+                if (alvo <= 0 && terminou) break
             }
         } catch (e: Exception) {
             estado = "parado por erro"
