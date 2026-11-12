@@ -1,0 +1,61 @@
+name: Build EXE (computador)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [computador]
+    paths:
+      - "pc/**"
+      - ".github/workflows/build-pc.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: pc
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements-dev.txt
+          pip install pyinstaller
+
+      - name: Rodar os testes
+        run: python -m pytest -q
+
+      - name: Gerar o executável
+        run: pyinstaller --onefile --console --name JARVIS-PC run_jarvis.py
+
+      - name: Testar o executável
+        run: echo sair | ./dist/JARVIS-PC.exe
+
+      - name: Guardar o executável como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-PC
+          path: pc/dist/JARVIS-PC.exe
+
+      - name: Publicar no release pc-latest
+        if: github.ref == 'refs/heads/computador'
+        run: |
+          gh release delete pc-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create pc-latest dist/JARVIS-PC.exe \
+            --title "JARVIS para computador (último build)" \
+            --notes "Build ${GITHUB_RUN_NUMBER} do commit ${GITHUB_SHA::7}. Baixe JARVIS-PC.exe e execute. Configure as variáveis de ambiente indicadas no README." \
+            --latest=false \
+            --target "$GITHUB_SHA"

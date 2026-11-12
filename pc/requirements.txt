@@ -1,0 +1,6 @@
+# O núcleo não precisa de nenhuma biblioteca extra (só Python 3.10 ou mais novo).
+#
+# Opcional, para voz (não testada automaticamente):
+# pyttsx3
+# vosk
+# sounddevice
