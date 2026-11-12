@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import sys
 
+from . import config
 from .nucleo import Nucleo
 
 
@@ -61,8 +62,16 @@ def _aviso(mensagem: str) -> None:
     print(f"\nJARVIS: {mensagem}\n> ", end="", flush=True)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argumentos = sys.argv[1:] if argv is None else argv
+    if "--configurar" in argumentos:
+        from .configurar import configurar
+
+        print(configurar())
+        return 0
     nucleo = Nucleo(aviso=_aviso)
+    if not config.valor("ia_url"):
+        print("Dica: para usar a IA, rode 'JARVIS-PC --configurar' (ou 'python -m jarvis --configurar').")
     falar = _falar_fn()
     ouvir = _ouvir_fn()
     print("JARVIS para computador. Digite seu pedido, ou 'sair' para fechar.")

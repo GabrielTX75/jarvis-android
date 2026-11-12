@@ -24,7 +24,7 @@ def arquivo_config() -> Path:
     return pasta_dados() / "config.json"
 
 
-def _do_arquivo() -> dict:
+def ler_arquivo() -> dict:
     try:
         dados = json.loads(arquivo_config().read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -37,5 +37,5 @@ def valor(nome: str) -> str:
     do_ambiente = os.environ.get(VARIAVEIS[nome], "").strip()
     if do_ambiente:
         return do_ambiente
-    bruto = _do_arquivo().get(nome)
+    bruto = ler_arquivo().get(nome)
     return str(bruto).strip() if bruto is not None else ""
