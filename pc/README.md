@@ -1,13 +1,17 @@
 # JARVIS para computador
 
-Versão de computador do JARVIS (Python, português). Funciona pelo teclado, no terminal.
-Voz é opcional.
+Versão de computador do JARVIS (Python, português). Tem janela (tkinter). Também funciona no terminal. Voz é opcional.
 
 ## Como rodar
 
+Abrir a janela:
+
 ```bash
-python3 -m jarvis
+python3 -m jarvis --janela
 ```
+
+No modo terminal: `python3 -m jarvis`. O `JARVIS-PC.exe` abre a janela direto.
+Na janela, o botão **Configurações** guarda o endereço, o modelo e as chaves no `config.json`.
 
 Precisa de Python 3.10 ou mais novo. O núcleo não usa nenhuma biblioteca extra.
 Para testar: `pip install -r requirements-dev.txt` e depois `python -m pytest`.
@@ -69,5 +73,7 @@ Quando você faz um pedido que a regras não entendem, a IA responde. Ela lembra
 - `jarvis/calc.py`: calculadora segura (sem `eval`)
 - `jarvis/config.py`: lê o `config.json` e as variáveis de ambiente
 - `jarvis/ia.py`, `jarvis/busca.py`: conversa com os seus servidores
+- `jarvis/interface.py`: janela (tkinter) e tela de configurações
+- `jarvis/configurar.py`: grava as configurações sem mostrar chaves
 - `jarvis/main.py`: terminal, com voz opcional
 - `tests/`: testes automáticos (rodam também no GitHub Actions)

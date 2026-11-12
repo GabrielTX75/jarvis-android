@@ -19,16 +19,25 @@ PERGUNTAS = [
 ]
 
 
-def configurar(perguntar=input, esconder=getpass.getpass) -> str:
+def salvar_valores(novos: dict) -> str:
+    """Grava os valores não vazios no config.json, mantendo o que já estava salvo."""
     dados = dict(config.ler_arquivo())
+    for nome, valor in novos.items():
+        if str(valor).strip():
+            dados[nome] = str(valor).strip()
+    arq = config.arquivo_config()
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    arq.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(arq)
+
+
+def configurar(perguntar=input, esconder=getpass.getpass) -> str:
+    dados = config.ler_arquivo()
+    novos = {}
     for nome, texto, secreto in PERGUNTAS:
         ja_tem = bool(str(dados.get(nome, "")).strip())
         dica = " [já salvo, Enter mantém]" if ja_tem else ""
         leitor = esconder if secreto else perguntar
-        resposta = leitor(texto + dica + ": ").strip()
-        if resposta:
-            dados[nome] = resposta
-    arq = config.arquivo_config()
-    arq.parent.mkdir(parents=True, exist_ok=True)
-    arq.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+        novos[nome] = leitor(texto + dica + ": ")
+    arq = salvar_valores(novos)
     return f"Configuração salva em {arq}. Não mostrei os valores secretos."
