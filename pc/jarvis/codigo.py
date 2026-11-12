@@ -127,8 +127,8 @@ class Gerador:
         if self.em_andamento():
             return "Já estou gerando o código. Diga como está o código para ver o andamento."
         if not ia.configurado():
-            return ("Configure a IA antes: defina JARVIS_IA_URL e JARVIS_IA_MODEL "
-                    "(e JARVIS_IA_KEY, se o servidor pedir chave).")
+            return ("Configure a IA antes, em ~/JARVIS/config.json (ia_url e ia_modelo). "
+                    "Veja o arquivo config.exemplo.json.")
         if pedido is not None:
             arq = self._novo_arquivo()
             self.dados = {

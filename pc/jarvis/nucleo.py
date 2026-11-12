@@ -1,6 +1,7 @@
 """Núcleo do JARVIS: recebe o pedido, decide a ação e devolve a resposta."""
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 
 from . import ferramentas as f
@@ -18,6 +19,8 @@ class Nucleo:
         self.downloads = downloads or (Path.home() / "Downloads")
         self.gerador = gerador or Gerador(self.pasta)
         self.aviso = aviso
+        # Últimas trocas com a IA, para ela entender o que foi dito antes.
+        self.historico: deque[dict] = deque(maxlen=12)
 
     def processar(self, texto: str) -> tuple[str, bool]:
         """Devolve (resposta, se o JARVIS deve encerrar)."""
@@ -26,13 +29,14 @@ class Nucleo:
             if not ia.configurado():
                 return ("Não entendi esse pedido. Exemplos: 'quanto é 25 por cento de 80', "
                         "'pesquisa receita de bolo', 'abre a calculadora'. "
-                        "Para conversar livremente, configure JARVIS_IA_URL.", False)
-            resposta = ia.chamar(
-                [{"role": "system", "content": prompt_sistema()}, {"role": "user", "content": texto}],
-                max_tokens=1024,
-            )
+                        "Para conversar livremente, configure a IA em ~/JARVIS/config.json.", False)
+            mensagens = [{"role": "system", "content": prompt_sistema()}, *self.historico,
+                         {"role": "user", "content": texto}]
+            resposta = ia.chamar(mensagens, max_tokens=1024)
             if resposta is None:
-                return ("Não consegui falar com a IA agora.", False)
+                return ("Não consegui falar com a IA agora. Confira ia_url e ia_modelo em ~/JARVIS/config.json.", False)
+            self.historico.append({"role": "user", "content": texto})
+            self.historico.append({"role": "assistant", "content": resposta[0]})
             acao = da_ia(resposta[0])
             if acao is None:
                 return (resposta[0].strip() or "Não tenho resposta para isso.", False)
@@ -79,6 +83,9 @@ class Nucleo:
             return (self.gerador.status(), False)
         if nome == "parar_codigo":
             return (self.gerador.parar(), False)
+        if nome == "limpar_conversa":
+            self.historico.clear()
+            return ("Conversa esquecida. Podemos começar de novo.", False)
         if nome == "ler_tela":
             return ("Ler a tela não está disponível nesta versão para computador.", False)
         return ("Ainda não sei fazer isso.", False)

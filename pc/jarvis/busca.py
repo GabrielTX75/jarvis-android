@@ -5,16 +5,17 @@ Configure com as variáveis JARVIS_BUSCA_URL (ex.: https://seu-worker.workers.de
 from __future__ import annotations
 
 import json
-import os
 import urllib.parse
 import urllib.request
 
+from . import config
+
 
 def buscar(termo: str) -> str:
-    base = os.environ.get("JARVIS_BUSCA_URL", "").strip().rstrip("/")
-    token = os.environ.get("JARVIS_BUSCA_TOKEN", "").strip()
+    base = config.valor("busca_url").rstrip("/")
+    token = config.valor("busca_token")
     if not base.startswith("https://") or not token:
-        return "Configure as variáveis JARVIS_BUSCA_URL e JARVIS_BUSCA_TOKEN para pesquisar."
+        return "Configure a busca em ~/JARVIS/config.json (busca_url e busca_token) para pesquisar."
     if not termo.strip():
         return "Diga o que devo pesquisar."
     url = base + "/busca?q=" + urllib.parse.quote(termo.strip()[:200])

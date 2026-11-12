@@ -12,22 +12,27 @@ python3 -m jarvis
 Precisa de Python 3.10 ou mais novo. O núcleo não usa nenhuma biblioteca extra.
 Para testar: `pip install -r requirements-dev.txt` e depois `python -m pytest`.
 
-## Configuração (variáveis de ambiente)
+## Configurar a IA e a busca
 
-Nenhuma chave fica no código. Defina só o que você for usar:
+Crie o arquivo `config.json` dentro da pasta `JARVIS` na sua pasta de usuário:
+no Windows, `C:\Users\SEU_NOME\JARVIS\config.json`. Use o modelo `config.exemplo.json`.
 
-| Variável | Para quê |
+| Campo | O que colocar |
 |---|---|
-| `JARVIS_IA_URL` | Endereço do seu servidor de IA (compatível com a API da OpenAI). Sem isso, a IA fica desligada. |
-| `JARVIS_IA_MODEL` | Nome do modelo no seu servidor. |
-| `JARVIS_IA_KEY` | Chave do seu servidor, se ele pedir. |
-| `JARVIS_BUSCA_URL` | Endereço do seu servidor de busca (o mesmo Worker do app Android). |
-| `JARVIS_BUSCA_TOKEN` | Senha do servidor de busca. |
-| `JARVIS_PASTA` | Onde guardar anotações e códigos. Padrão: `~/JARVIS`. |
-| `JARVIS_VOSK_MODELO` | Pasta do modelo de voz Vosk pt-BR (ativa a entrada por voz). |
+| `ia_url` | Endereço **completo** do seu servidor, como `https://seu-servidor/v1/chat/completions`. |
+| `ia_modelo` | Nome do modelo no seu servidor. |
+| `ia_chave` | Chave do servidor, se ele pedir. Fica só no seu computador. |
+| `busca_url` | Endereço do seu servidor de busca (o Worker do app Android). |
+| `busca_token` | Senha do servidor de busca. |
 
-No Windows, use `set NOME=valor` no CMD ou `$env:NOME="valor"` no PowerShell.
-No Linux e no macOS, use `export NOME=valor`.
+Variáveis de ambiente (`JARVIS_IA_URL`, `JARVIS_IA_MODEL`, `JARVIS_IA_KEY`, `JARVIS_BUSCA_URL`,
+`JARVIS_BUSCA_TOKEN`) têm prioridade sobre o arquivo. `JARVIS_PASTA` troca a pasta `JARVIS`.
+`JARVIS_VOSK_MODELO` ativa a entrada por voz.
+
+Nunca coloque chaves dentro do código nem no repositório.
+
+Quando você faz um pedido que a regras não entendem, a IA responde. Ela lembra das últimas
+12 trocas da conversa. Diga "esquece a conversa" para começar do zero.
 
 ## O que já faz
 
@@ -43,7 +48,7 @@ No Linux e no macOS, use `export NOME=valor`.
 - **Código longo**: "faz um código de 3 mil linhas de ...". Roda em segundo plano e salva
   cada parte em `~/JARVIS/codigos/`. Use "como está o código", "para o código" e
   "continua o código" para acompanhar, parar e retomar. Com meta de linhas, mostra a porcentagem.
-- **Conversa com a IA**: se o pedido não for reconhecido e `JARVIS_IA_URL` estiver configurada,
+- **Conversa com a IA**: se o pedido não for reconhecido e a IA estiver configurada,
   a IA responde. Ela pode pedir uma ação em JSON, e o JARVIS executa só ações conhecidas.
 
 ## Limites
@@ -62,6 +67,7 @@ No Linux e no macOS, use `export NOME=valor`.
 - `jarvis/ferramentas.py`: anotações, lembretes, programas, música e Downloads
 - `jarvis/codigo.py`: geração de código em segundo plano, com retomada
 - `jarvis/calc.py`: calculadora segura (sem `eval`)
+- `jarvis/config.py`: lê o `config.json` e as variáveis de ambiente
 - `jarvis/ia.py`, `jarvis/busca.py`: conversa com os seus servidores
 - `jarvis/main.py`: terminal, com voz opcional
 - `tests/`: testes automáticos (rodam também no GitHub Actions)

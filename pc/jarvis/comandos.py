@@ -28,6 +28,7 @@ ACOES_DISPONIVEIS = {
     "status_codigo": "",
     "parar_codigo": "",
     "ler_tela": "",
+    "limpar_conversa": "",
 }
 
 
@@ -96,6 +97,9 @@ def reconhecer(texto: str) -> Acao | None:
         return ("hora", {})
     if re.search(r"\bqual (?:e |eh )?(?:a )?data\b|\bdata de hoje\b|\bque dia (?:e |eh )?hoje\b", t):
         return ("data", {})
+
+    if re.search(r"\b(esquece|esqueca|limpa|limpe|apaga|apague|zera|zere)\b.*\bconversa\b", t):
+        return ("limpar_conversa", {})
 
     if re.search(r"\b(le|leia|ler)\b.*\btela\b", t):
         return ("ler_tela", {})

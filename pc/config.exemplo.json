@@ -1,0 +1,7 @@
+{
+  "ia_url": "https://SEU-SERVIDOR/v1/chat/completions",
+  "ia_modelo": "NOME-DO-MODELO",
+  "ia_chave": "",
+  "busca_url": "",
+  "busca_token": ""
+}
