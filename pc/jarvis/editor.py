@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import webbrowser
 import subprocess
 import sys
 from pathlib import Path
@@ -62,7 +63,7 @@ def testar_arquivo(arq: Path, tempo: int = TEMPO_TESTE_S) -> str:
         return "Não encontrei o Python para rodar o código. Instale o Python e tente de novo."
     try:
         resultado = subprocess.run(
-            [python, "-I", str(arq)],
+            [python, "-X", "utf8", str(arq)],  # UTF-8 mesmo no Windows; -I ignoraria isso
             cwd=arq.parent,
             stdin=subprocess.DEVNULL,  # se o código pedir digitação, ele erra em vez de travar
             capture_output=True,
@@ -82,3 +83,19 @@ def testar_arquivo(arq: Path, tempo: int = TEMPO_TESTE_S) -> str:
         return "Rodou sem erros." + (f" Saída:\n{saida}" if saida else " Não mostrou nada na tela.")
     detalhe = (resultado.stderr.strip() or resultado.stdout.strip())[-LIMITE_TEXTO:]
     return f"Deu erro (código de saída {resultado.returncode}):\n{detalhe}"
+
+
+def testar_projeto(pasta: Path) -> str:
+    """Escolhe um jeito de rodar o projeto: main.py, index.html ou o primeiro .py."""
+    if not pasta.is_dir():
+        return "Não encontrei a pasta do projeto."
+    if (pasta / "main.py").exists():
+        return testar_arquivo(pasta / "main.py")
+    if (pasta / "index.html").exists():
+        webbrowser.open((pasta / "index.html").resolve().as_uri())
+        return "Abri index.html no navegador. Confira se a página está do jeito que você pediu."
+    scripts = sorted(pasta.rglob("*.py"))
+    if scripts:
+        return testar_arquivo(scripts[0])
+    return ("Esse projeto não tem um jeito automático de rodar (main.py ou index.html). "
+            "Abra a pasta no VS Code para rodar.")

@@ -9,6 +9,7 @@ from . import ia
 from .busca import buscar
 from .calc import calcular, formatar
 from . import editor
+from . import funcoes
 from .codigo import Gerador
 from .comandos import da_ia, prompt_sistema, reconhecer
 
@@ -21,6 +22,7 @@ class Nucleo:
         self.gerador = gerador or Gerador(self.pasta)
         self.aviso = aviso
         self.abrir_editor = abrir_editor
+        self._pendente: str | None = None
         # Últimas trocas com a IA, para ela entender o que foi dito antes.
         self.historico: deque[dict] = deque(maxlen=12)
 
@@ -46,8 +48,37 @@ class Nucleo:
 
     def executar(self, nome: str, args: dict, texto: str = "") -> tuple[str, bool]:
         a = args or {}
+        if nome not in ("desligar_pedido", "confirmar_desligar"):
+            self._pendente = None
         if nome == "sair":
             return ("Até logo.", True)
+        if nome == "copiar":
+            return (funcoes.copiar(str(a.get("texto", ""))), False)
+        if nome == "ler_area":
+            return (funcoes.ler_area(), False)
+        if nome == "abrir_site":
+            return (funcoes.abrir_site(str(a.get("endereco", ""))), False)
+        if nome == "abrir_pasta":
+            return (funcoes.abrir_pasta(str(a.get("nome", ""))), False)
+        if nome == "procurar_arquivo":
+            return (funcoes.procurar_msg(str(a.get("termo", ""))), False)
+        if nome == "info_sistema":
+            return (funcoes.info_sistema(), False)
+        if nome == "captura_tela":
+            return (funcoes.captura_tela(self.pasta), False)
+        if nome == "resumir_arquivo":
+            return (funcoes.resumir_arquivo(str(a.get("nome", ""))), False)
+        if nome == "desligar_pedido":
+            self._pendente = "desligar"
+            return ("Para desligar o computador em 1 minuto, diga: confirma desligar. "
+                    "Para cancelar depois, diga: cancela o desligamento.", False)
+        if nome == "confirmar_desligar":
+            if self._pendente != "desligar":
+                return ("Não há desligamento pedido. Diga: desliga o computador.", False)
+            self._pendente = None
+            return (funcoes.desligar_pc(), False)
+        if nome == "cancelar_desligar":
+            return (funcoes.cancelar_desligamento(), False)
         if nome == "pesquisar":
             return (buscar(str(a.get("termo", ""))), False)
         if nome == "calcular":
@@ -80,7 +111,7 @@ class Nucleo:
         if nome == "gerar_codigo":
             resposta = self.gerador.iniciar(str(a.get("pedido") or texto))
             if resposta.startswith("Comecei") and self.abrir_editor:
-                problema = editor.abrir_no_vscode(Path(str(self.gerador.dados.get("arquivo", ""))))
+                problema = editor.abrir_no_vscode(Path(str(self.gerador.dados.get("projeto", ""))))
                 if problema is None:
                     resposta += " Abri o arquivo no VS Code. O código vai aparecendo lá enquanto eu gero."
                 else:
@@ -89,10 +120,10 @@ class Nucleo:
         if nome == "testar_codigo":
             if self.gerador.em_andamento():
                 return ("O código ainda está sendo gerado. Espere terminar para testar.", False)
-            arquivo = self.gerador.dados.get("arquivo")
+            arquivo = self.gerador.dados.get("projeto")
             if not arquivo:
                 return ("Não há código para testar. Peça um código primeiro.", False)
-            return (editor.testar_arquivo(Path(str(arquivo))), False)
+            return (editor.testar_projeto(Path(str(arquivo))), False)
         if nome == "continuar_codigo":
             return (self.gerador.iniciar(None), False)
         if nome == "status_codigo":

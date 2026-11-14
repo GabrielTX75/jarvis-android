@@ -47,6 +47,21 @@ Quando você faz um pedido que a regras não entendem, a IA responde. Ela lembra
   Mostra a saída ou o erro. Programas que ficam abertos são interrompidos depois de 10 segundos.
 - Atenção: o teste roda o código no seu computador. Só teste código que você entende.
 
+## Funções do computador
+
+- **Projetos completos**: "faz um site de loja", "cria um programa que ...", "faz um código ...".
+  O JARVIS cria uma pasta de projeto com todos os arquivos (HTML, CSS, JavaScript, Python etc.)
+  e só para quando o projeto estiver pronto. Erros de rede não param a geração: ele espera e tenta de novo.
+- **Área de transferência**: "copia <texto>", "o que está copiado". No Linux precisa do xclip.
+- **Sites e pastas**: "abre o google.com", "abre a pasta downloads", "abre a pasta jarvis".
+- **Arquivos**: "procura o arquivo relatorio", "resume o arquivo ata" (usa a sua IA).
+- **Sistema**: "informações do sistema" (disco, memória e bateria se o psutil estiver instalado).
+- **Print**: "tira um print da tela" (precisa do pillow).
+- **Desligar**: "desliga o computador" pede confirmação. Diga "confirma desligar" para desligar em 1 minuto,
+  ou "cancela o desligamento".
+
+Para as funções opcionais: `pip install psutil pillow`. O `.exe` já inclui as duas.
+
 ## O que já faz
 
 - **Calculadora**: "quanto é 25 por cento de 80", "raiz de 16", "2 mais 2 vezes 3".

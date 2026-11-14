@@ -57,3 +57,21 @@ def test_abre_com_o_comando_code(tmp_path, monkeypatch):
     monkeypatch.setattr(editor.subprocess, "Popen", lambda args, **kw: chamadas.append(args))
     assert editor.abrir_no_vscode(tmp_path / "codigo.py") is None
     assert chamadas == [["/usr/bin/code", str(tmp_path / "codigo.py")]]
+
+
+def test_projeto_com_main_roda_o_main(tmp_path):
+    (tmp_path / "main.py").write_text('print("projeto ok")\n', encoding="utf-8")
+    assert "projeto ok" in editor.testar_projeto(tmp_path)
+
+
+def test_projeto_html_abre_no_navegador(tmp_path, monkeypatch):
+    (tmp_path / "index.html").write_text("<h1>oi</h1>", encoding="utf-8")
+    abertos = []
+    monkeypatch.setattr(editor.webbrowser, "open", lambda url: abertos.append(url))
+    assert "Abri index.html" in editor.testar_projeto(tmp_path)
+    assert abertos[0].startswith("file://")
+
+
+def test_projeto_sem_jeito_de_rodar(tmp_path):
+    (tmp_path / "estilo.css").write_text("body{}", encoding="utf-8")
+    assert "não tem um jeito automático" in editor.testar_projeto(tmp_path)

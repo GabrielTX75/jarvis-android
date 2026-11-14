@@ -30,6 +30,17 @@ ACOES_DISPONIVEIS = {
     "ler_tela": "",
     "limpar_conversa": "",
     "testar_codigo": "",
+    "copiar": "texto",
+    "ler_area": "",
+    "abrir_site": "endereco",
+    "abrir_pasta": "nome",
+    "procurar_arquivo": "termo",
+    "info_sistema": "",
+    "captura_tela": "",
+    "resumir_arquivo": "nome",
+    "desligar_pedido": "",
+    "confirmar_desligar": "",
+    "cancelar_desligar": "",
 }
 
 
@@ -50,7 +61,8 @@ def reconhecer(texto: str) -> Acao | None:
         return ("sair", {})
 
     # Gerar código vem primeiro: "faz um código que continua..." não deve virar "continuar".
-    if re.match(r"^(gera|gere|cria|crie|escreve|escreva|faz|faca|fazer|monta|monte)\b", t) and "codigo" in t:
+    if (re.match(r"^(gera|gere|cria|crie|escreve|escreva|faz|faca|fazer|monta|monte)\b", t)
+            and re.search(r"\b(codigo|programa|script|projeto|site|jogo|app|aplicativo|sistema)\b", t)):
         return ("gerar_codigo", {"pedido": original})
     if re.search(r"\b(testa|testar|teste|roda|rode|executa|execute)\b.*\bcodigo\b", t):
         return ("testar_codigo", {})
@@ -60,6 +72,35 @@ def reconhecer(texto: str) -> Acao | None:
         return ("status_codigo", {})
     if re.search(r"\b(para|pare|parar|cancela|cancele)\b.*\bcodigo\b", t):
         return ("parar_codigo", {})
+
+    if re.search(r"\bconfirm\w*\b.*\bdesliga\w*", t):
+        return ("confirmar_desligar", {})
+    if re.search(r"\bcancel\w*\b.*\bdesliga\w*", t):
+        return ("cancelar_desligar", {})
+    if re.search(r"\bdesliga\w*\b.*\b(computador|pc|maquina|notebook)\b", t):
+        return ("desligar_pedido", {})
+    if re.search(r"\b(area de transferencia|o que (esta|está) copiado)\b", t):
+        return ("ler_area", {})
+    m = re.match(r"^(?:copia|copie|copiar)\s+(?P<texto>.+)$", t)
+    if m:
+        return ("copiar", {"texto": original[len(original) - len(m["texto"]):] if original.lower().endswith(m["texto"]) else m["texto"]})
+    m = re.match(r"^(?:procura|procure|acha|ache|encontra|encontre)\s+(?:o |um )?arquivo\s+(?P<termo>.+)$", t)
+    if m:
+        return ("procurar_arquivo", {"termo": m["termo"]})
+    if re.search(r"\b(informacoes|informacao|info|status) do (sistema|computador|pc)\b|\bcomo (esta|está) (o|meu) (computador|pc)\b|\bbateria\b", t):
+        return ("info_sistema", {})
+    if re.search(r"\b(tira|tire|faz|faca|fazer)\b.*\bprint\b|\bcaptura de tela\b|\bprint da tela\b|\bscreenshot\b", t):
+        return ("captura_tela", {})
+    m = re.match(r"^(?:resume|resuma|resumir)\s+(?:o |a )?(?:arquivo|texto)\s+(?P<nome>.+)$", t)
+    if m:
+        return ("resumir_arquivo", {"nome": m["nome"]})
+    m = re.match(r"^(?:abre|abra|abrir)\s+(?:a |o )?pasta\s+(?P<nome>.+)$", t)
+    if m:
+        return ("abrir_pasta", {"nome": m["nome"]})
+    m = re.match(r"^(?:abre|abra|abrir)\s+(?:o )?(?:site\s+)?(?P<nome>[\w-]+)\s+(?P<tld>com|org|net|br|io|dev|gov)(?:\s+(?P<tld2>br))?$", t)
+    if m:
+        endereco = m["nome"] + "." + m["tld"] + ("." + m["tld2"] if m["tld2"] else "")
+        return ("abrir_site", {"endereco": endereco})
 
     m = re.match(r"^(?:pesquis\w*|procur\w*|busc\w*)\s+(?:na (?:internet|web)\s+|no google\s+|sobre\s+)?(?P<termo>.+)$", t)
     if m:
