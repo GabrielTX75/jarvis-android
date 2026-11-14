@@ -8,17 +8,19 @@ from . import ferramentas as f
 from . import ia
 from .busca import buscar
 from .calc import calcular, formatar
+from . import editor
 from .codigo import Gerador
 from .comandos import da_ia, prompt_sistema, reconhecer
 
 
 class Nucleo:
     def __init__(self, pasta: Path | None = None, downloads: Path | None = None,
-                 gerador: Gerador | None = None, aviso=print):
+                 gerador: Gerador | None = None, aviso=print, abrir_editor: bool = True):
         self.pasta = pasta or f.pasta_dados()
         self.downloads = downloads or (Path.home() / "Downloads")
         self.gerador = gerador or Gerador(self.pasta)
         self.aviso = aviso
+        self.abrir_editor = abrir_editor
         # Últimas trocas com a IA, para ela entender o que foi dito antes.
         self.historico: deque[dict] = deque(maxlen=12)
 
@@ -76,7 +78,21 @@ class Nucleo:
         if nome == "desfazer_organizacao":
             return (f.desfazer_organizacao(self.pasta), False)
         if nome == "gerar_codigo":
-            return (self.gerador.iniciar(str(a.get("pedido") or texto)), False)
+            resposta = self.gerador.iniciar(str(a.get("pedido") or texto))
+            if resposta.startswith("Comecei") and self.abrir_editor:
+                problema = editor.abrir_no_vscode(Path(str(self.gerador.dados.get("arquivo", ""))))
+                if problema is None:
+                    resposta += " Abri o arquivo no VS Code. O código vai aparecendo lá enquanto eu gero."
+                else:
+                    resposta += f" Não abri no VS Code: {problema}."
+            return (resposta, False)
+        if nome == "testar_codigo":
+            if self.gerador.em_andamento():
+                return ("O código ainda está sendo gerado. Espere terminar para testar.", False)
+            arquivo = self.gerador.dados.get("arquivo")
+            if not arquivo:
+                return ("Não há código para testar. Peça um código primeiro.", False)
+            return (editor.testar_arquivo(Path(str(arquivo))), False)
         if nome == "continuar_codigo":
             return (self.gerador.iniciar(None), False)
         if nome == "status_codigo":

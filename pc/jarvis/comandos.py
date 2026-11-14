@@ -29,6 +29,7 @@ ACOES_DISPONIVEIS = {
     "parar_codigo": "",
     "ler_tela": "",
     "limpar_conversa": "",
+    "testar_codigo": "",
 }
 
 
@@ -51,6 +52,8 @@ def reconhecer(texto: str) -> Acao | None:
     # Gerar código vem primeiro: "faz um código que continua..." não deve virar "continuar".
     if re.match(r"^(gera|gere|cria|crie|escreve|escreva|faz|faca|fazer|monta|monte)\b", t) and "codigo" in t:
         return ("gerar_codigo", {"pedido": original})
+    if re.search(r"\b(testa|testar|teste|roda|rode|executa|execute)\b.*\bcodigo\b", t):
+        return ("testar_codigo", {})
     if re.search(r"\b(continua|continue|retoma|retome)\b.*\bcodigo\b", t):
         return ("continuar_codigo", {})
     if re.search(r"\b(como esta|status|andamento)\b.*\bcodigo\b|\bcodigo\b.*\b(como esta|andamento|status)\b", t):

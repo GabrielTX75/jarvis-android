@@ -38,6 +38,15 @@ Nunca coloque chaves dentro do código nem no repositório.
 Quando você faz um pedido que a regras não entendem, a IA responde. Ela lembra das últimas
 12 trocas da conversa. Diga "esquece a conversa" para começar do zero.
 
+## Gerar, ver e testar código
+
+- Peça um código, por exemplo: "faz um código que soma dois números".
+  O JARVIS abre o arquivo no VS Code (precisa do comando `code` no sistema) e vai
+  escrevendo nele enquanto gera. O VS Code atualiza sozinho.
+- "Testa o código" roda o último arquivo com o Python, depois de conferir a sintaxe.
+  Mostra a saída ou o erro. Programas que ficam abertos são interrompidos depois de 10 segundos.
+- Atenção: o teste roda o código no seu computador. Só teste código que você entende.
+
 ## O que já faz
 
 - **Calculadora**: "quanto é 25 por cento de 80", "raiz de 16", "2 mais 2 vezes 3".
@@ -70,6 +79,7 @@ Quando você faz um pedido que a regras não entendem, a IA responde. Ela lembra
 - `jarvis/nucleo.py`: decide a ação e devolve a resposta
 - `jarvis/ferramentas.py`: anotações, lembretes, programas, música e Downloads
 - `jarvis/codigo.py`: geração de código em segundo plano, com retomada
+- `jarvis/editor.py`: abre no VS Code e testa o código rodando-o
 - `jarvis/calc.py`: calculadora segura (sem `eval`)
 - `jarvis/config.py`: lê o `config.json` e as variáveis de ambiente
 - `jarvis/ia.py`, `jarvis/busca.py`: conversa com os seus servidores
