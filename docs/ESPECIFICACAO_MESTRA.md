@@ -128,7 +128,7 @@ Cada recurso será marcado como: NÃO INICIADO, EM DESENVOLVIMENTO, IMPLEMENTADO
 - README descreve uma base Android Kotlin/WebView, voz, memória local e ferramentas limitadas.
 - README declara que não há APK pronto, IA local embutida, pesquisa web nativa ou automação geral.
 - Manifest declara permissões amplas (por exemplo MANAGE_EXTERNAL_STORAGE, SYSTEM_ALERT_WINDOW e serviços de microfone/media projection) que precisam de justificativa e revisão de menor privilégio.
-- Manifest referencia `.PedirCapturaActivity`; confirmar se a classe existe e se é necessária.
+- Manifest referencia `.PedirCapturaActivity`, classe confirmada dentro de `NucleoJarvis.kt`; revisar necessidade e fluxo de consentimento, mas não tratar como classe ausente.
 - Conferir divergência entre versão documentada no README e versão configurada no Gradle.
 - Verificar serviços de notificação/acessibilidade, comportamento em segundo plano, tratamento de dados e conformidade com as versões atuais do Android.
 - Revisar Gerador de Código, Ferramentas, AudioTranscriber e demais classes com análise estática, testes e inspeção de fluxo.
