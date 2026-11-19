@@ -1,15 +1,16 @@
 name: Build APK
 
-permissions:
-  contents: write
-
 on:
   workflow_dispatch:
   push:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Baixar o código
         uses: actions/checkout@v4
@@ -28,30 +29,18 @@ jobs:
       - name: Baixar o modelo de voz em português
         run: |
           mkdir -p app/src/main/assets
-          curl -fsSL -o /tmp/vosk-pt.zip https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
+          curl --retry 3 --retry-delay 2 -fsSL -o /tmp/vosk-pt.zip https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
           unzip -q /tmp/vosk-pt.zip -d /tmp/vosk-pt
           mv /tmp/vosk-pt/vosk-model-small-pt-0.3 app/src/main/assets/model-pt
           echo "vosk-model-small-pt-0.3" > app/src/main/assets/model-pt/uuid
 
-      - name: Gerar o APK de depuração
-        run: gradle :app:assembleDebug --no-daemon
+      - name: Compilar APK de depuração
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Guardar o APK
+      - name: Guardar APK para instalação e teste
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-debug-apk
+          name: JARVIS-Android-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Publicar o APK em uma Release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp app/build/outputs/apk/debug/app-debug.apk JARVIS.apk
-          git log -1 --format=%B > notas.md
-          echo "" >> notas.md
-          echo "APK gerado pelo commit ${GITHUB_SHA::7}." >> notas.md
-          gh release create "apk-${GITHUB_RUN_NUMBER}" JARVIS.apk \
-            --title "JARVIS APK ${GITHUB_RUN_NUMBER}" \
-            --notes-file notas.md \
-            --latest
+          if-no-files-found: error
+          retention-days: 14
