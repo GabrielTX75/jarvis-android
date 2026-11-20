@@ -23,6 +23,27 @@ As dependências de câmera são opcionais: OpenCV, MediaPipe e Pillow. O acesso
 - **JARVIS MONEY:** painel inicial transparente para análise de mercado. A arquitetura planejada inclui fontes de cotações identificadas e datadas, análise de tendência/volume/volatilidade/notícias, cenários probabilísticos, backtesting, simulação com cotações reais, custos e controles de risco, além de histórico auditável. O painel atual é apenas a estrutura visual: ainda não está conectado a cotações, não produz sinais e não executa ordens, apostas ou movimentações financeiras.
 - **JARVIS DRIVE:** módulo futuro para localização autorizada, mapas, trânsito, planejamento de rotas e abertura de navegação compatível. O botão atual apenas informa o escopo; não acessa localização nem controla veículos. Direção autônoma não será improvisada por integração de API.
 
+## JARVIS Security Lab — Blue Team e Red Team
+
+- **Blue Team (defensivo):** análise estática local da pasta escolhida pelo usuário, com confirmação de que o escopo é próprio/autorizado, ocorrências para revisão manual e relatório. A análise atual é básica e não certifica segurança.
+- **Red Team (atacante em laboratório):** roteiro interativo de simulação em cenários fictícios locais (aplicação web, API ou servidor). Ensina definição de escopo, revisão de autenticação/autorização, uso de dados sintéticos, evidência mínima, correção e reteste.
+- O perfil Red Team nesta versão **não** envia tráfego, não testa hosts reais, não explora serviços, não coleta credenciais, não exfiltra dados e não executa persistência/evasão. Testes técnicos futuros devem ficar limitados a laboratório próprio ou autorização documentada, com escopo explícito e ações reversíveis.
+
+## Plano geral de capacidades do JARVIS EXE
+
+Os itens abaixo são metas de desenvolvimento, não recursos já concluídos:
+
+- Voz bidirecional contínua em português, ativação por comando, interrupção por voz e opção de repetir resposta.
+- Visão computacional: captura apenas sob comando, OCR local integrado ao chat e interpretação contextual da janela selecionada.
+- Controle assistido de mouse/teclado com plano visível, confirmação para ações sensíveis, pausa imediata e botão para o usuário assumir o controle.
+- Memória persistente criptografada, com revisão/controle pelo usuário; sincronização segura com o APK e perfis isolados.
+- Agentes especializados para pesquisa, programação, estudo, escrita, planejamento e análise.
+- JARVIS MONEY: cotações reais com fonte e horário, análise probabilística, backtesting e simulação; sem promessas de lucro nem ordens financeiras automáticas.
+- JARVIS DRIVE: localização consentida, mapas, trânsito, rotas e integração de navegação compatível; sem controle improvisado de direção, aceleração ou frenagem.
+- Hologramas: evolução de wireframes para modelos 3D detalhados, biblioteca de ativos, gestos calibráveis e edição de componentes.
+- Atualizador seguro com assinatura, backup, validação de integridade e rollback.
+- Testes automatizados, revisão de privacidade e segurança e validação em Windows real antes de distribuir.
+
 ## Configuração Groq
 Endpoint: https://api.groq.com/openai/v1/chat/completions
 Modelo: use um modelo atualmente habilitado na sua conta.
