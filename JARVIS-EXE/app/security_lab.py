@@ -147,7 +147,7 @@ class SecurityLab:
 
     def _append_monitor(self, message):
         self.monitor_result.configure(state="normal")
-        self.monitor_result.insert("end", message + "\\n")
+        self.monitor_result.insert("end", message + "\n")
         self.monitor_result.see("end")
         self.monitor_result.configure(state="disabled")
 
