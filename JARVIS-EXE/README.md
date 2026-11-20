@@ -7,8 +7,15 @@
 - Abertura confirmada de Bloco de Notas e Calculadora; pesquisa web confirmada pelo usuário.
 - Criação de pastas de projeto e gravação de arquivos dentro de uma área dedicada, com validação contra path traversal. Arquivos gerados não são executados automaticamente.
 - Captura de tela somente por ação explícita do usuário; OCR local opcional depende de Tesseract instalado pelo usuário.
+- Laboratório inicial de hologramas 3D esquemáticos: carros, motos, construções, robôs/máquinas, corpo humano educativo, terrenos e objeto genérico; rotação, zoom, deslocamento e separação visual de componentes.
+- Rastreamento opcional de uma mão pela webcam padrão, ativado manualmente e processado localmente com OpenCV/MediaPipe; câmera é desligada ao fechar o laboratório. Nenhuma imagem é gravada ou enviada pela função.
 - Auditoria estática offline de pasta escolhida pelo usuário, com ocorrências para revisão manual; não declara vulnerabilidades automaticamente.
 - Workflow Windows que executa testes unitários e empacota JARVIS.exe como artefato temporário.
+
+## Laboratório de hologramas (protótipo)
+Abra Ferramentas → Laboratório de hologramas 3D. A câmera começa desligada; clique em “Ativar câmera e gestos” para permitir o rastreamento local. Mão aberta move a orientação, movimento da mão desloca o modelo e a pinça entre polegar/indicador controla o zoom. Use os botões para girar e separar/reunir componentes. Fechar a janela desliga e libera a câmera. A primeira versão desenha modelos esquemáticos em arame; não representa carros reais completos, engenharia CAD ou hologramas físicos.
+
+As dependências de câmera são opcionais: OpenCV, MediaPipe e Pillow. O acesso depende das permissões de câmera do Windows e de uma webcam funcional.
 
 ## Configuração Groq
 Endpoint: https://api.groq.com/openai/v1/chat/completions
@@ -19,6 +26,8 @@ Chave: informe dentro do aplicativo. Não a coloque no GitHub.
 Abra a aba Actions do repositório, selecione Build JARVIS EXE e execute Run workflow. Quando o job terminar com sucesso, baixe o artefato JARVIS-Windows-EXE. O artefato expira após 14 dias. Ainda não há instalador assinado nem release permanente.
 
 ## Ainda pendente — não fingir que está pronto
+- Modelos 3D realistas/CAD com peças corretas, materiais, dimensões e bibliotecas de ativos; o laboratório atual usa wireframes procedurais esquemáticos, não réplicas técnicas de veículos/edifícios.
+- Calibração de gestos robusta para múltiplas mãos, controles customizáveis e compatibilidade testada com webcams diferentes.
 - Controle genérico e seguro do mouse/teclado, com plano visível, confirmação por ação, pausa e botão de assumir controle.
 - OCR totalmente integrado ao chat e interpretação contextual de janelas.
 - Voz bidirecional contínua e interrupção por voz.
