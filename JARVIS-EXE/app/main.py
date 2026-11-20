@@ -8,6 +8,7 @@ from project_workspace import create_project
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
+from security_lab import SecurityLab
 
 APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "Jarvis"
 CONFIG_FILE = APP_DIR / "settings.json"
@@ -78,6 +79,8 @@ class JarvisApp:
                    command=self.open_money_lab).pack(fill="x", pady=4)
         ttk.Button(sidebar, text="➤  JARVIS DRIVE", style="Jarvis.TButton",
                    command=self.drive_planned).pack(fill="x", pady=4)
+        ttk.Button(sidebar, text="⌘  SECURITY LAB", style="Jarvis.TButton",
+                   command=self.open_security_lab).pack(fill="x", pady=4)
         tk.Frame(sidebar, bg="#1b3a50", height=1).pack(fill="x", pady=14)
         tk.Label(sidebar, text="ESTADO DO SISTEMA", bg="#0b1d2e", fg="#7899ad",
                  font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=4)
@@ -168,7 +171,7 @@ class JarvisApp:
         ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Laboratório de hologramas 3D",command=self.open_hologram_lab).pack(fill="x",padx=18,pady=5)
-        ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="JARVIS Security Lab (Blue/Red Team)",command=self.open_security_lab).pack(fill="x",padx=18,pady=5)
         tk.Label(w,text="Controle genérico do mouse, leitura de tela e varreduras não estão habilitados nesta versão.",
                  bg="#0b1d2c",fg="#a9bdca",wraplength=390).pack(padx=18,pady=12)
 
@@ -208,6 +211,12 @@ class JarvisApp:
     def open_hologram_lab(self):
         HologramLab(self.root)
         self.add("HOLOGRAMAS","Laboratório 3D aberto. A câmera permanece desligada até você ativá-la.")
+
+    def open_security_lab(self):
+        SecurityLab(self.root, on_report=lambda mode, report:
+                    self.add(mode, report))
+        self.add("SECURITY LAB",
+                 "Perfis Blue Team e Red Team educativo disponíveis. Red Team opera apenas em cenários fictícios locais.")
 
     def open_money_lab(self):
         MoneyLab(self.root)
