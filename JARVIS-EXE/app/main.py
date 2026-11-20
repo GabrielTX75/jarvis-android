@@ -57,7 +57,8 @@ class JarvisApp:
             e=tk.Entry(w,width=64,show="*" if secret else None); e.insert(0,self.config.get(key,"")); e.pack(padx=14); fields[key]=e
         tk.Label(w,text="Use HTTPS. Nunca compartilhe sua chave.",bg="#0b1d2c",fg="#9bb8c9").pack(padx=14,pady=8)
         def save():
-            self.config.update({k:e.get().strip() for k,e in fields.items()})
+            self.config.update({k:e.get().strip() for k,e in fields.items() if k!="api_key"})
+            keyring.set_password("JARVIS","api_key",fields["api_key"].get().strip())
             self.save_config(); w.destroy(); self.add("JARVIS","Configurações salvas no perfil local.")
         ttk.Button(w,text="Salvar",command=save).pack(pady=12)
 
