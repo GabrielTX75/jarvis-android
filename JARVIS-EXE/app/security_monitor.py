@@ -9,7 +9,6 @@ from datetime import datetime, timezone, timedelta
 import json
 from pathlib import Path
 import threading
-import time
 
 
 class SecurityMonitor:
@@ -92,6 +91,7 @@ class JsonlLogWatcher:
         self._stop = threading.Event()
         self._thread = None
         self._offset = 0
+        self._pending = ""
 
     def start(self):
         if not self.path.is_file():
@@ -118,8 +118,14 @@ class JsonlLogWatcher:
                     stream.seek(self._offset)
                     chunk = stream.read()
                     self._offset = stream.tell()
-                for line in chunk.splitlines():
-                    if not line.strip():
+                parts = (self._pending + chunk).splitlines(keepends=True)
+                self._pending = ""
+                for part in parts:
+                    if not part.endswith(("\\n", "\\r")):
+                        self._pending = part
+                        continue
+                    line = part.strip()
+                    if not line:
                         continue
                     try:
                         alert = self.monitor.process_event(json.loads(line))
