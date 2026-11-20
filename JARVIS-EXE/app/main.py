@@ -7,6 +7,7 @@ from desktop_tools import capture_screen
 from project_workspace import create_project
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
+from money_lab import MoneyLab
 
 APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "Jarvis"
 CONFIG_FILE = APP_DIR / "settings.json"
@@ -30,22 +31,89 @@ class JarvisApp:
     def save_config(self):
         CONFIG_FILE.write_text(json.dumps(self.config,ensure_ascii=False,indent=2),encoding="utf-8")
 
+    def _styles(self):
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure("Jarvis.TButton", background="#12344c", foreground="#e8f6ff",
+                        padding=(12, 9), borderwidth=0, font=("Segoe UI", 9, "bold"))
+        style.map("Jarvis.TButton", background=[("active", "#18516d")],
+                  foreground=[("disabled", "#7895a8")])
+        style.configure("Accent.TButton", background="#087da3", foreground="#ffffff",
+                        padding=(14, 10), borderwidth=0, font=("Segoe UI", 9, "bold"))
+        style.map("Accent.TButton", background=[("active", "#0a9bc7")])
+        style.configure("Jarvis.TEntry", fieldbackground="#10283a", foreground="#ffffff",
+                        insertcolor="#ffffff", padding=10, borderwidth=0)
+
     def build(self):
-        self.root.configure(bg="#07111d")
-        top=tk.Frame(self.root,bg="#0b1d2c",padx=16,pady=12); top.pack(fill="x")
-        tk.Label(top,text="J.A.R.V.I.S",fg="#55dfff",bg="#0b1d2c",font=("Segoe UI",19,"bold")).pack(side="left")
-        ttk.Button(top,text="Configurações",command=self.settings).pack(side="right")
-        ttk.Button(top,text="Ferramentas",command=self.tools).pack(side="right",padx=8)
-        self.chat=tk.Text(self.root,bg="#091725",fg="#e6f7ff",insertbackground="white",wrap="word",
-                          font=("Segoe UI",11),relief="flat",padx=14,pady=14,state="disabled")
-        self.chat.pack(fill="both",expand=True,padx=14,pady=14)
-        self.chat.tag_configure("speaker",foreground="#55dfff",font=("Segoe UI",10,"bold"))
-        self.status=tk.StringVar(value="PRONTO")
-        tk.Label(self.root,textvariable=self.status,bg="#07111d",fg="#55dfff",anchor="w",padx=16).pack(fill="x")
-        bar=tk.Frame(self.root,bg="#0b1d2c",padx=12,pady=12); bar.pack(fill="x",padx=14,pady=(4,14))
-        self.entry=tk.Entry(bar,bg="#10283a",fg="white",insertbackground="white",relief="flat",font=("Segoe UI",11))
-        self.entry.pack(side="left",fill="x",expand=True,ipady=10,padx=(0,8)); self.entry.bind("<Return>",lambda e:self.send())
-        ttk.Button(bar,text="Enviar",command=self.send).pack(side="right")
+        self.root.configure(bg="#07111f")
+        self._styles()
+        header = tk.Frame(self.root, bg="#0b1d2e", padx=20, pady=15)
+        header.pack(fill="x")
+        brand = tk.Frame(header, bg="#0b1d2e")
+        brand.pack(side="left")
+        tk.Label(brand, text="J.A.R.V.I.S", fg="#48dcff", bg="#0b1d2e",
+                 font=("Segoe UI", 20, "bold")).pack(anchor="w")
+        tk.Label(brand, text="PERSONAL INTELLIGENCE SYSTEM", fg="#8baabd",
+                 bg="#0b1d2e", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+        ttk.Button(header, text="Configurações", style="Jarvis.TButton",
+                   command=self.settings).pack(side="right")
+        ttk.Button(header, text="Ferramentas", style="Jarvis.TButton",
+                   command=self.tools).pack(side="right", padx=8)
+
+        shell = tk.Frame(self.root, bg="#07111f")
+        shell.pack(fill="both", expand=True, padx=14, pady=14)
+        sidebar = tk.Frame(shell, bg="#0b1d2e", width=190, padx=12, pady=14)
+        sidebar.pack(side="left", fill="y", padx=(0, 12))
+        sidebar.pack_propagate(False)
+        tk.Label(sidebar, text="MÓDULOS", bg="#0b1d2e", fg="#7899ad",
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=4, pady=(2, 10))
+        ttk.Button(sidebar, text="⌂  Conversa", style="Accent.TButton",
+                   command=lambda: self.entry.focus_set()).pack(fill="x", pady=4)
+        ttk.Button(sidebar, text="◇  Hologramas 3D", style="Jarvis.TButton",
+                   command=self.open_hologram_lab).pack(fill="x", pady=4)
+        ttk.Button(sidebar, text="▥  JARVIS MONEY", style="Jarvis.TButton",
+                   command=self.open_money_lab).pack(fill="x", pady=4)
+        ttk.Button(sidebar, text="➤  JARVIS DRIVE", style="Jarvis.TButton",
+                   command=self.drive_planned).pack(fill="x", pady=4)
+        tk.Frame(sidebar, bg="#1b3a50", height=1).pack(fill="x", pady=14)
+        tk.Label(sidebar, text="ESTADO DO SISTEMA", bg="#0b1d2e", fg="#7899ad",
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=4)
+        self.status = tk.StringVar(value="PRONTO")
+        tk.Label(sidebar, textvariable=self.status, bg="#0b1d2e", fg="#48dcff",
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=4, pady=(7, 2))
+        tk.Label(sidebar, text="Paleta azul-marinho e ciano",
+                 bg="#0b1d2e", fg="#7899ad", font=("Segoe UI", 7),
+                 wraplength=155, justify="left").pack(anchor="w", padx=4, pady=(8, 0))
+
+        content = tk.Frame(shell, bg="#07111f")
+        content.pack(side="left", fill="both", expand=True)
+        intro = tk.Frame(content, bg="#0c2032", padx=16, pady=12)
+        intro.pack(fill="x", pady=(0, 10))
+        tk.Label(intro, text="CENTRAL DE COMANDO", bg="#0c2032", fg="#48dcff",
+                 font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        tk.Label(intro, text="Converse com o JARVIS ou abra um dos módulos disponíveis.",
+                 bg="#0c2032", fg="#b6cad8", font=("Segoe UI", 9)).pack(anchor="w", pady=(3, 0))
+
+        chat_panel = tk.Frame(content, bg="#091827", highlightthickness=1,
+                              highlightbackground="#183b53")
+        chat_panel.pack(fill="both", expand=True)
+        self.chat = tk.Text(chat_panel, bg="#091827", fg="#e8f6ff",
+                            insertbackground="#ffffff", wrap="word",
+                            font=("Segoe UI", 10), relief="flat", padx=16, pady=16,
+                            state="disabled", borderwidth=0)
+        self.chat.pack(fill="both", expand=True, padx=2, pady=2)
+        self.chat.tag_configure("speaker", foreground="#48dcff",
+                                font=("Segoe UI", 9, "bold"))
+        bar = tk.Frame(content, bg="#0b1d2e", padx=12, pady=12)
+        bar.pack(fill="x", pady=(10, 0))
+        self.entry = ttk.Entry(bar, style="Jarvis.TEntry")
+        self.entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.entry.bind("<Return>", lambda e: self.send())
+        ttk.Button(bar, text="Enviar", style="Accent.TButton",
+                   command=self.send).pack(side="right")
 
     def add(self,who,msg):
         self.chat.configure(state="normal"); self.chat.insert("end",who+"\n","speaker")
@@ -140,6 +208,17 @@ class JarvisApp:
     def open_hologram_lab(self):
         HologramLab(self.root)
         self.add("HOLOGRAMAS","Laboratório 3D aberto. A câmera permanece desligada até você ativá-la.")
+
+    def open_money_lab(self):
+        MoneyLab(self.root)
+        self.add("JARVIS MONEY",
+                 "Painel de análise aberto. Dados de mercado ainda não estão conectados; nenhuma operação real é executada.")
+
+    def drive_planned(self):
+        messagebox.showinfo("JARVIS DRIVE",
+            "Módulo planejado: localização autorizada, mapas, trânsito e abertura de navegação. "
+            "Esta versão ainda não controla veículos.")
+        self.add("JARVIS DRIVE", "Módulo em planejamento; nenhum veículo é controlado.")
 
     def screen_capture(self):
         if not messagebox.askyesno("Captura de tela","Autoriza capturar a tela atual?"):return
