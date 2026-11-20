@@ -98,3 +98,6 @@ A especificação completa está em [docs/ESPECIFICACAO_MESTRA.md](docs/ESPECIFI
 3. **[JARVIS-COMPARTILHADO](JARVIS-COMPARTILHADO/README.md)** — backend, IA multi-provedor, memória, sincronização, autenticação e serviços comuns.
 
 O desenvolvimento será feito em etapas e nesta branch de trabalho, preservando a branch principal. A ordem acima define a sequência de entrega; contratos temporários permitirão que o APK seja desenvolvido antes da implementação completa dos serviços compartilhados. Recursos só serão marcados como prontos depois de compilação e testes verificáveis.
+
+## Interface Android
+A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identidade visual do JARVIS EXE. A alteração visual não significa que os recursos holográficos do EXE estejam disponíveis no Android.
