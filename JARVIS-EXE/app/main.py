@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from desktop_tools import capture_screen
 from project_workspace import create_project
 from defensive_audit import audit_folder
+from hologram_lab import HologramLab
 
 APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "Jarvis"
 CONFIG_FILE = APP_DIR / "settings.json"
@@ -98,6 +99,7 @@ class JarvisApp:
         ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Laboratório de hologramas 3D",command=self.open_hologram_lab).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
         tk.Label(w,text="Controle genérico do mouse, leitura de tela e varreduras não estão habilitados nesta versão.",
                  bg="#0b1d2c",fg="#a9bdca",wraplength=390).pack(padx=18,pady=12)
@@ -134,6 +136,10 @@ class JarvisApp:
             for item in findings[:30]:
                 self.add("ACHADO",f"{item['file']}:{item['line']} — {item['pattern']}")
         except Exception as e:messagebox.showerror("Auditoria",str(e))
+
+    def open_hologram_lab(self):
+        HologramLab(self.root)
+        self.add("HOLOGRAMAS","Laboratório 3D aberto. A câmera permanece desligada até você ativá-la.")
 
     def screen_capture(self):
         if not messagebox.askyesno("Captura de tela","Autoriza capturar a tela atual?"):return
