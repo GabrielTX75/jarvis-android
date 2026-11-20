@@ -121,7 +121,7 @@ class JsonlLogWatcher:
                 parts = (self._pending + chunk).splitlines(keepends=True)
                 self._pending = ""
                 for part in parts:
-                    if not part.endswith(("\\n", "\\r")):
+                    if not part.endswith(("\n", "\r")):
                         self._pending = part
                         continue
                     line = part.strip()
