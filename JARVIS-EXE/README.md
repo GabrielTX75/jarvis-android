@@ -1,25 +1,35 @@
 # JARVIS EXE — Windows
 
-## Primeira versão funcional adicionada
-- Interface desktop em português.
-- Chat com API compatível com OpenAI Chat Completions, incluindo Groq.
-- Configuração de endpoint, modelo e chave.
-- Histórico de conversa durante a sessão.
-- Ferramentas confirmadas para abrir Bloco de Notas, Calculadora, navegador e pesquisa web.
-- Modo Hacker informativo/defensivo, sem executar varreduras.
+## Implementado nesta etapa (código enviado)
+- Aplicativo desktop em português com chat usando endpoint compatível com OpenAI Chat Completions (inclui Groq).
+- Configuração de endpoint/modelo; chave da API armazenada pelo Windows Credential Manager via pacote keyring.
+- Histórico de conversa em memória durante a sessão.
+- Abertura confirmada de Bloco de Notas e Calculadora; pesquisa web confirmada pelo usuário.
+- Criação de pastas de projeto e gravação de arquivos dentro de uma área dedicada, com validação contra path traversal. Arquivos gerados não são executados automaticamente.
+- Captura de tela somente por ação explícita do usuário; OCR local opcional depende de Tesseract instalado pelo usuário.
+- Auditoria estática offline de pasta escolhida pelo usuário, com ocorrências para revisão manual; não declara vulnerabilidades automaticamente.
+- Workflow Windows que executa testes unitários e empacota JARVIS.exe como artefato temporário.
 
 ## Configuração Groq
 Endpoint: https://api.groq.com/openai/v1/chat/completions
-Modelo: informe um modelo habilitado na sua conta.
-Chave: configure no aplicativo. Não coloque a chave no GitHub.
+Modelo: use um modelo atualmente habilitado na sua conta.
+Chave: informe dentro do aplicativo. Não a coloque no GitHub.
 
-A chave desta primeira versão fica em arquivo local de configurações do usuário do Windows. Não compartilhe esse arquivo. Migrar para Windows Credential Manager é obrigatório antes de distribuir amplamente.
+## Como obter o EXE
+Abra a aba Actions do repositório, selecione Build JARVIS EXE e execute Run workflow. Quando o job terminar com sucesso, baixe o artefato JARVIS-Windows-EXE. O artefato expira após 14 dias. Ainda não há instalador assinado nem release permanente.
 
-## Compilação
-O workflow .github/workflows/build-exe.yml compila em runner Windows e publica JARVIS.exe como artefato do GitHub Actions por 14 dias. A alteração em JARVIS-EXE deve disparar a compilação; acompanhe em Actions.
+## Ainda pendente — não fingir que está pronto
+- Controle genérico e seguro do mouse/teclado, com plano visível, confirmação por ação, pausa e botão de assumir controle.
+- OCR totalmente integrado ao chat e interpretação contextual de janelas.
+- Voz bidirecional contínua e interrupção por voz.
+- Agentes especializados de pesquisa, estudo, escrita, planejamento e análise.
+- Memória persistente criptografada, sincronização entre APK/EXE, múltiplos perfis realmente isolados e permissões por perfil.
+- Modo Hacker técnico completo para Red Team/Blue Team em ativos próprios/autorizados, com escopo, evidência mínima, laboratório, correção e reteste. A auditoria local atual é apenas estática e básica.
+- Atualizador com assinatura, backup, validação de integridade e rollback.
+- Testes de segurança, privacidade, desempenho e compatibilidade em Windows real.
 
-## Ainda não implementado
-Controle genérico de mouse/teclado, leitura de tela/OCR, voz contínua, biometria, múltiplos perfis isolados, memória sincronizada, automação de navegador com verificação de estado, atualizador assinado com rollback e auditoria técnica automatizada. Não são simulados nesta versão.
+## Limites de segurança
+O JARVIS não deve invadir terceiros, roubar credenciais, persistir ocultamente, evadir detecção, extrair dados pessoais nem apagar rastros. Ações de risco (pagamento, compra, publicação, exclusão, instalação, privilégios elevados) exigem confirmação explícita. Não contornar autenticação bancária ou controles do Windows.
 
-## Segurança
-Ações disponíveis são limitadas e pedem confirmação. O modo Hacker permanece defensivo; não oferece invasão, roubo de credenciais, persistência, evasão ou extração de dados.
+## Estado de validação
+Código e workflow adicionados ao branch de desenvolvimento. A compilação e os testes ainda precisam concluir com sucesso no GitHub Actions e o EXE precisa ser testado em Windows antes de ser considerado pronto.
