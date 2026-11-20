@@ -59,7 +59,6 @@ class JarvisApp:
         def save():
             self.config.update({k:e.get().strip() for k,e in fields.items() if k!="api_key"})
             keyring.set_password("JARVIS","api_key",fields["api_key"].get().strip())
-            self.config.pop("api_key",None)
             self.save_config(); w.destroy(); self.add("JARVIS","Configurações salvas no perfil local.")
         ttk.Button(w,text="Salvar",command=save).pack(pady=12)
 
@@ -71,7 +70,7 @@ class JarvisApp:
 
     def ask(self):
         try:
-            ep=self.config["endpoint"]; key=self.config["api_key"]; model=self.config["model"]
+            ep=self.config["endpoint"]; key=keyring.get_password("JARVIS","api_key") or ""; model=self.config["model"]
             if not ep.startswith("https://"): raise ValueError("O endpoint remoto precisa usar HTTPS.")
             if not key or not model: raise ValueError("Configure modelo e chave da API.")
             body=json.dumps({"model":model,"messages":self.history[-24:],"stream":False}).encode()
@@ -96,8 +95,8 @@ class JarvisApp:
             ttk.Button(w,text=label,command=lambda x=exe,l=label:self.open_app(x,l)).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Abrir navegador",command=self.open_browser).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Pesquisar na web",command=self.web_search).pack(fill="x",padx=18,pady=5)
-        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)
-        ttk.Button(w,text="Auditar pasta local",command=self.audit_local).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
         tk.Label(w,text="Controle genérico do mouse, leitura de tela e varreduras não estão habilitados nesta versão.",
