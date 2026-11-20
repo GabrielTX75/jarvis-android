@@ -1,1 +1,5 @@
 pyinstaller==6.16.0
+keyring==25.6.0
+Pillow==12.0.0
+pyautogui==0.9.54
+pytesseract==0.3.13
