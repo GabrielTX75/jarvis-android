@@ -1,8 +1,8 @@
-import json, os, subprocess, threading, urllib.request, urllib.error, webbrowser
+import json, os, subprocess, threading, urllib.request, urllib.error, webbrowser, keyring
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus\nfrom desktop_tools import capture_screen, read_screen_text\nfrom project_workspace import create_project, write_project_file\nfrom defensive_audit import audit_folder
 
 APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "Jarvis"
 CONFIG_FILE = APP_DIR / "settings.json"
@@ -20,7 +20,7 @@ class JarvisApp:
         try:
             d=json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
             return {"endpoint":d.get("endpoint","https://api.groq.com/openai/v1/chat/completions"),
-                    "model":d.get("model","openai/gpt-oss-120b"),"api_key":d.get("api_key","")}
+                    "model":d.get("model","openai/gpt-oss-120b"),"api_key":keyring.get_password("JARVIS","api_key") or ""}
         except Exception: return {"endpoint":"https://api.groq.com/openai/v1/chat/completions","model":"openai/gpt-oss-120b","api_key":""}
 
     def save_config(self):
@@ -91,7 +91,7 @@ class JarvisApp:
             ttk.Button(w,text=label,command=lambda x=exe,l=label:self.open_app(x,l)).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Abrir navegador",command=self.open_browser).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Pesquisar na web",command=self.web_search).pack(fill="x",padx=18,pady=5)
-        ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
         tk.Label(w,text="Controle genérico do mouse, leitura de tela e varreduras não estão habilitados nesta versão.",
                  bg="#0b1d2c",fg="#a9bdca",wraplength=390).pack(padx=18,pady=12)
 
