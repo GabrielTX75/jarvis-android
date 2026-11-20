@@ -12,13 +12,16 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.Uri
 import android.provider.Settings
 import android.os.Environment
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -45,6 +48,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     companion object {
         private const val REQ_AUDIO = 4102
         private const val REQ_NOTIF = 4103
+        private const val APP_HOST = "appassets.androidplatform.net"
+        private const val APP_URL = "https://appassets.androidplatform.net/assets/index.html"
         private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "pin_hash", "picovoice_key")
     }
 
@@ -69,30 +74,75 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             .build()
 
         webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = false
-        webView.settings.allowContentAccess = false
-        webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        webView.settings.javaScriptCanOpenWindowsAutomatically = false
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            safeBrowsingEnabled = true
+        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
+        // The legacy bridge is retained for existing voice, screen, WhatsApp and code tools.
+        // Navigation and resource loading are now confined to the bundled appassets origin.
         webView.addJavascriptInterface(NativeBridge(), "JarvisAndroid")
         webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
-                assetLoader.shouldInterceptRequest(request.url)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val uri = request.url
+                if (uri.host?.equals(APP_HOST, ignoreCase = true) == true) {
+                    if (!isTrustedAssetOrigin(uri)) return notFoundResponse()
+                    return assetLoader.shouldInterceptRequest(uri) ?: notFoundResponse()
+                }
+                return null
+            }
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (uri.host == "appassets.androidplatform.net") return false
-                if (uri.scheme == "https" || uri.scheme == "http") {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    return true
+                if (isAppDocument(uri)) return false
+                // No other document, including a different page on the privileged origin, may load here.
+                if (isTrustedAssetOrigin(uri)) return true
+
+                // Only external HTTPS links may leave the app; HTTP and custom schemes are blocked.
+                if (uri.scheme == "https") {
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        true
+                    } catch (_: Exception) {
+                        true
+                    }
                 }
                 return true
             }
         }
         setContentView(webView)
-        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+        webView.loadUrl(APP_URL)
     }
+
+    private fun isTrustedAssetOrigin(uri: Uri): Boolean =
+        uri.scheme == "https" &&
+            uri.host?.equals(APP_HOST, ignoreCase = true) == true &&
+            uri.userInfo == null &&
+            (uri.port == -1 || uri.port == 443)
+
+    private fun isAppDocument(uri: Uri): Boolean =
+        isTrustedAssetOrigin(uri) &&
+            uri.path == "/assets/index.html" &&
+            uri.query == null &&
+            uri.fragment == null
+
+    private fun notFoundResponse(): WebResourceResponse =
+        WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            404,
+            "Not Found",
+            emptyMap(),
+            ByteArrayInputStream(ByteArray(0))
+        )
 
     inner class NativeBridge {
         @JavascriptInterface fun startListening() { runOnUiThread { beginListening() } }
