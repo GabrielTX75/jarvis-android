@@ -10,7 +10,7 @@ def audit_folder(folder):
     findings=[]
     allowed={".py",".js",".ts",".html",".json",".yml",".yaml",".env.example"}
     for file in root.rglob("*"):
-        if not file.is_file() or file.suffix.lower() not in allowed:
+        if file.is_symlink() or not file.is_file() or file.suffix.lower() not in allowed:
             continue
         if any(part in {".git","node_modules","venv",".venv","dist","build"} for part in file.parts):
             continue
