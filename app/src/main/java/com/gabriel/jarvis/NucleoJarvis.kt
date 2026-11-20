@@ -79,12 +79,12 @@ class PedirCapturaActivity : Activity() {
     companion object { const val REQ = 5101 }
 }
 
-/** Núcleo flutuante: esfera dourada com anéis HUD e fragmentos girando. Modo 0 ouvindo, 1 pensando, 2 falando. */
+/** Núcleo flutuante: esfera ciano com anéis HUD e fragmentos girando. Modo 0 ouvindo, 1 pensando, 2 falando. */
 class OrbView(context: Context) : View(context) {
     private val pincel = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val ouro = Color.rgb(255, 180, 40)
-    private val claro = Color.rgb(255, 236, 170)
-    private val fundo = Color.rgb(40, 20, 0)
+    private val ouro = Color.rgb(72, 220, 255)
+    private val claro = Color.rgb(220, 248, 255)
+    private val fundo = Color.rgb(4, 28, 48)
     private var angulo = 0f
     /** Nível do microfone (0 a 1): faz a esfera pulsar enquanto o senhor fala. */
     var nivel: Float = 0f
