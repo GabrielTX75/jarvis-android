@@ -1,8 +1,8 @@
-import sys, tempfile, unittest
+import sys, tempfile, unittest, json, threading
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
-from security_monitor import SecurityMonitor
+from security_monitor import SecurityMonitor, JsonlLogWatcher
 
 
 class SecurityMonitorTests(unittest.TestCase):
@@ -36,6 +36,26 @@ class SecurityMonitorTests(unittest.TestCase):
         monitor = SecurityMonitor()
         alert = monitor.process_event({"event_type":"admin_role_granted","actor_id":"user-2"})
         self.assertEqual(alert["action"], "DRY_RUN_ONLY")
+
+    def test_jsonl_watcher_processes_new_complete_records(self):
+        with tempfile.TemporaryDirectory() as temp:
+            log = Path(temp) / "events.jsonl"
+            log.write_text("", encoding="utf-8")
+            monitor = SecurityMonitor(threshold=2)
+            received = []
+            ready = threading.Event()
+            watcher = JsonlLogWatcher(str(log), monitor,
+                                      on_alert=lambda alert: (received.append(alert), ready.set()),
+                                      poll_seconds=0.25)
+            watcher.start()
+            try:
+                with log.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\\n")
+                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\\n")
+                self.assertTrue(ready.wait(3))
+                self.assertEqual(received[0]["severity"], "HIGH")
+            finally:
+                watcher.stop()
 
     def test_invalid_event_rejected(self):
         with self.assertRaises(ValueError):
