@@ -17,6 +17,12 @@ Abra Ferramentas → Laboratório de hologramas 3D. A câmera começa desligada;
 
 As dependências de câmera são opcionais: OpenCV, MediaPipe e Pillow. O acesso depende das permissões de câmera do Windows e de uma webcam funcional.
 
+## Interface e módulos planejados (novembro de 2026)
+
+- Interface desktop reorganizada em central de comando, navegação lateral e chat, com paleta preto/azul-marinho/ciano; não usa laranja como cor de destaque.
+- **JARVIS MONEY:** painel inicial transparente para análise de mercado. A arquitetura planejada inclui fontes de cotações identificadas e datadas, análise de tendência/volume/volatilidade/notícias, cenários probabilísticos, backtesting, simulação com cotações reais, custos e controles de risco, além de histórico auditável. O painel atual é apenas a estrutura visual: ainda não está conectado a cotações, não produz sinais e não executa ordens, apostas ou movimentações financeiras.
+- **JARVIS DRIVE:** módulo futuro para localização autorizada, mapas, trânsito, planejamento de rotas e abertura de navegação compatível. O botão atual apenas informa o escopo; não acessa localização nem controla veículos. Direção autônoma não será improvisada por integração de API.
+
 ## Configuração Groq
 Endpoint: https://api.groq.com/openai/v1/chat/completions
 Modelo: use um modelo atualmente habilitado na sua conta.
