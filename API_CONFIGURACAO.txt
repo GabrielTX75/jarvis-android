@@ -2,10 +2,9 @@ JARVIS ANDROID — CONFIGURAÇÃO DA IA
 Versão do projeto: 0.7.0
 
 1. Abra o JARVIS e entre em Configurações.
-2. Em Provedor de IA, selecione “IA local / servidor compatível”.
-3. Informe o endereço COMPLETO do endpoint de chat compatível com OpenAI. Normalmente termina em:
-   /v1/chat/completions
-4. Informe o identificador exato do modelo aceito pelo servidor.
+2. Em Provedor de IA, selecione “API compatível (Groq, OpenAI ou servidor local)”.
+3. O padrão do APK é Groq: https://api.groq.com/openai/v1/chat/completions. Você pode trocar pelo endpoint completo de outro provedor compatível com OpenAI.
+4. O modelo padrão configurado é openai/gpt-oss-120b. Confirme no painel do provedor se ele está disponível para sua conta.
 5. Se o servidor exigir autenticação, informe a chave no campo temporário.
 6. Toque em “Testar conexão com a IA”.
 7. Se aparecer “Conectado”, envie uma mensagem normal ao JARVIS.
@@ -21,7 +20,7 @@ COMO INTERPRETAR ERROS
 
 SEGURANÇA
 - Não envie sua chave de API em prints, conversas ou arquivos públicos.
-- A chave digitada é mantida apenas na sessão atual do app e precisa ser informada novamente após reiniciar.
+- No Android, a chave é armazenada no armazenamento criptografado do sistema. No navegador comum, ela permanece apenas na sessão.
 - Não coloque uma chave secreta dentro do APK para distribuir a outras pessoas.
 - Para um app público, crie um backend HTTPS e mantenha a chave somente no servidor.
 - HTTP é bloqueado para servidores externos; somente localhost/127.0.0.1 é liberado para testes locais.
