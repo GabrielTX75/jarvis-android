@@ -425,19 +425,33 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
  }
  const endpoint=(S.endpoint||"").trim(),model=(S.model||"").trim();
  if(!endpoint||!model)throw providerError("Configure o endereço e o nome do modelo nas configurações.");
- const requestController=new AbortController();let timedOut=false;const timeout=setTimeout(()=>{timedOut=true;requestController.abort()},45000);
+ const requestController=new AbortController();let timedOut=false;
+ const timeout=setTimeout(()=>{timedOut=true;requestController.abort()},90000);
  const relayAbort=()=>requestController.abort();if(signal){if(signal.aborted)relayAbort();else signal.addEventListener("abort",relayAbort,{once:true})}
  try{
-  let response;try{response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",...(S.apiKey?{Authorization:"Bearer "+S.apiKey}:{})},body:JSON.stringify({model,messages,stream:false}),signal:requestController.signal})}catch(e){if(signal?.aborted)throw e;if(timedOut)throw providerError("A IA demorou mais de 45 segundos para responder. Confira a conexão e se o modelo está carregado.");throw providerError("Não foi possível conectar à IA. Confira o endereço, o servidor e a configuração de CORS.")}
-  if(!response.ok){let detail="";try{detail=(await response.text()).replace(/[\u0000-\u001f]/g," ").slice(0,300)}catch{}throw providerError("Servidor de IA respondeu HTTP "+response.status+(detail?": "+detail:""))}
-  let data;try{data=await response.json()}catch{if(timedOut)throw providerError("A IA demorou demais para enviar uma resposta válida.");throw providerError("A resposta do servidor não é um JSON válido.")}
-  let text=data?.choices?.[0]?.message?.content;
-  if(Array.isArray(text))text=text.map(part=>typeof part==="string"?part:(part?.text||"")).join("");
-  if(typeof text!=="string"||!text.trim()){
-   const detail=data?.error?.message||data?.message;
-   throw providerError(detail?"O servidor não retornou uma resposta de texto: "+String(detail).slice(0,220):"O modelo não retornou texto. Confira o nome do modelo e o formato da API.");
+  let full="",turns=0,finish="length";
+  const conversation=messages.map(m=>({...m}));
+  while(turns<8&&finish==="length"&&full.length<120000){
+   if(signal?.aborted)throw new DOMException("Cancelado","AbortError");
+   let response;try{response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",...(S.apiKey?{Authorization:"Bearer "+S.apiKey}:{})},body:JSON.stringify({model,messages:conversation,max_completion_tokens:8192,stream:false}),signal:requestController.signal})}catch(e){if(signal?.aborted)throw e;if(timedOut)throw providerError("A IA demorou mais de 90 segundos para responder. Confira a conexão e tente novamente.");throw providerError("Não foi possível conectar à IA. Confira o endereço, o servidor e a configuração de CORS.")}
+   if(!response.ok){let detail="";try{detail=(await response.text()).replace(/[\\u0000-\\u001f]/g," ").slice(0,300)}catch{}throw providerError("Servidor de IA respondeu HTTP "+response.status+(detail?": "+detail:""))}
+   let data;try{data=await response.json()}catch{throw providerError("A resposta do servidor não é um JSON válido.")}
+   let part=data?.choices?.[0]?.message?.content;
+   if(Array.isArray(part))part=part.map(item=>typeof item==="string"?item:(item?.text||"")).join("");
+   if(typeof part!=="string"||!part.trim()){
+    const detail=data?.error?.message||data?.message;
+    throw providerError(detail?"O servidor não retornou texto: "+String(detail).slice(0,220):"O modelo não retornou texto. Confira o nome do modelo e o formato da API.");
+   }
+   full+=part;turns++;
+   finish=data?.choices?.[0]?.finish_reason||"stop";
+   if(onText)onText({text:full});
+   if(finish==="length"&&turns<8&&full.length<120000){
+    conversation.push({role:"assistant",content:part});
+    conversation.push({role:"user",content:"Continue exatamente do ponto em que parou. Não repita nenhum trecho já enviado. Termine o arquivo, função ou explicação que estava produzindo. Se houver vários arquivos, conclua o arquivo atual antes de começar o próximo. Não resuma nem use reticências no lugar do código."});
+   }else break;
   }
-  if(onText)onText({text});return text;
+  if(finish==="length"&&(turns>=8||full.length>=120000))full+="\n\n[O JARVIS atingiu o limite técnico desta sequência. Peça 'continue exatamente de onde parou' para gerar a próxima parte.]";
+  return full;
  }finally{clearTimeout(timeout);if(signal)signal.removeEventListener("abort",relayAbort)}
 }
 async function testAIConnection(){
@@ -722,11 +736,11 @@ function draw2(t){const o=$("#co");o.textContent="";const re=/```([\w+#\/-]*)\n?
 while((m=re.exec(t))){pr(t.slice(i,m.index));blk(o,m[1],m[2]);i=re.lastIndex}pr(t.slice(i))}
 let cctl=null,pend=false,lastTxt="";function sched(t){lastTxt=t;if(pend)return;pend=true;requestAnimationFrame(()=>{pend=false;draw2(lastTxt)})}
 $("#cr").onclick=async()=>{if(!navigator.onLine&&S.provider==="claude"){$("#co").textContent="Sem internet: o JARVIS CODE precisa da IA. Configure um servidor local compatível para trabalhar offline.";return}
-a=$("#ca").value,l=$("#cl").value,i=$("#ci").value.trim(),c=$("#cc").value.slice(0,30000);
+a=$("#ca").value,l=$("#cl").value,i=$("#ci").value.trim(),c=$("#cc").value.slice(0,100000);
 if(!i&&!c){$("#co").textContent="Descreva o que quer ou cole um código.";return}
 $("#cr").disabled=true;$("#co").textContent="Processando…";
 try{cctl=new AbortController();
-const answer=await requestAI([{role:"system",content:SYSC},{role:"user",content:"Tarefa: "+CA[a]+"\nLinguagem: "+l+"\nInstrução: "+(i||"(nenhuma)")+"\n\nCódigo do usuário (até 30 mil caracteres nesta solicitação):\n"+(c||"(nenhum)")+"\n\nSe o usuário pediu um projeto completo, entregue vários arquivos em blocos separados e identifique cada caminho. Se a resposta ficar longa, organize em partes numeradas e indique exatamente qual arquivo vem a seguir."}],{signal:cctl.signal,onText:o=>sched(o.text)});
+const answer=await requestAI([{role:"system",content:SYSC},{role:"user",content:"Tarefa: "+CA[a]+"\nLinguagem: "+l+"\nInstrução: "+(i||"(nenhuma)")+"\n\nCódigo do usuário (até 100 mil caracteres nesta solicitação):\n"+(c||"(nenhum)")+"\n\nSe o usuário pediu um projeto completo, entregue vários arquivos em blocos separados e identifique cada caminho. Se a resposta ficar longa, organize em partes numeradas e indique exatamente qual arquivo vem a seguir."}],{signal:cctl.signal,onText:o=>sched(o.text)});
 draw2(answer||"(sem resposta)");}
 catch(e){const k=e&&e.code;if(k==="cancelled"||(e&&e.name==="AbortError")){e&&e.text?draw2(e.text):$("#co").textContent="Cancelado."}else{if(e&&e.text&&k!=="refused")draw2(e.text);const d=document.createElement("div");d.style.cssText="color:#fca5a5;margin-top:8px";d.textContent=aiMsg(k);$("#co").appendChild(d)}}
 cctl=null;$("#cr").disabled=false};
