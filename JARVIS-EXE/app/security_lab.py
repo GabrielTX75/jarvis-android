@@ -7,6 +7,7 @@ exfiltrate data, evade detection, persist, or modify target systems.
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from defensive_audit import audit_folder
+from security_monitor import SecurityMonitor, JsonlLogWatcher
 
 BG = "#07111f"
 PANEL = "#0b1d2e"
@@ -19,6 +20,7 @@ MUTED = "#91aabd"
 class SecurityLab:
     def __init__(self, parent, on_report=None):
         self.on_report = on_report
+        self.log_watcher = None
         self.win = tk.Toplevel(parent)
         self.win.title("JARVIS — Security Lab")
         self.win.geometry("900x650")
@@ -46,7 +48,9 @@ class SecurityLab:
         tabs.pack(fill="both", expand=True, padx=16, pady=16)
         blue = tk.Frame(tabs, bg=BG, padx=18, pady=18)
         red = tk.Frame(tabs, bg=BG, padx=18, pady=18)
-        tabs.add(blue, text="Defensivo • Blue Team")
+        monitor = tk.Frame(tabs, bg=BG, padx=18, pady=18)
+        tabs.add(blue, text="Auditoria local")
+        tabs.add(monitor, text="Monitoramento")
         tabs.add(red, text="Atacante • Red Team")
 
         tk.Label(blue, text="Análise defensiva de um projeto seu",
@@ -62,6 +66,30 @@ class SecurityLab:
         self.blue_result.pack(fill="both", expand=True, pady=(14, 0))
         self.blue_result.insert("end", "Nenhuma análise executada nesta sessão.")
         self.blue_result.configure(state="disabled")
+
+        tk.Label(monitor, text="Monitoramento contínuo de eventos do projeto",
+                 bg=BG, fg=CYAN, font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        tk.Label(monitor,
+                 text="Conecte um arquivo JSONL de auditoria exportado pelo seu próprio serviço. "
+                      "O JARVIS acompanha novas linhas e identifica padrões; sem um adaptador "
+                      "específico do provedor, a resposta fica em modo de simulação (sem bloquear contas).",
+                 bg=BG, fg=TEXT, wraplength=780, justify="left").pack(anchor="w", pady=(8, 12))
+        controls = tk.Frame(monitor, bg=BG)
+        controls.pack(anchor="w", fill="x")
+        ttk.Button(controls, text="Conectar log do projeto", style="Security.TButton",
+                   command=self.start_log_monitor).pack(side="left", padx=(0, 8))
+        ttk.Button(controls, text="Parar monitoramento", style="Security.TButton",
+                   command=self.stop_log_monitor).pack(side="left")
+        self.monitor_status = tk.StringVar(value="MONITORAMENTO DESLIGADO")
+        tk.Label(monitor, textvariable=self.monitor_status, bg=BG, fg=CYAN,
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(10, 4))
+        self.monitor_result = tk.Text(monitor, height=12, bg=CARD, fg=TEXT,
+                                      insertbackground=TEXT, relief="flat", wrap="word",
+                                      padx=12, pady=12)
+        self.monitor_result.pack(fill="both", expand=True, pady=(8, 0))
+        self.monitor_result.insert("end", "Aguardando conexão com um log de eventos.\n")
+        self.monitor_result.configure(state="disabled")
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
 
         tk.Label(red, text="Simulação controlada de Red Team",
                  bg=BG, fg=CYAN, font=("Segoe UI", 12, "bold")).pack(anchor="w")
@@ -88,6 +116,51 @@ class SecurityLab:
         widget.delete("1.0", "end")
         widget.insert("end", value)
         widget.configure(state="disabled")
+
+
+    def start_log_monitor(self):
+        path = filedialog.askopenfilename(parent=self.win,
+                                          title="Selecione o log JSONL do seu projeto",
+                                          filetypes=[("Logs JSONL", "*.jsonl"), ("Todos", "*.*")])
+        if not path:
+            return
+        self.stop_log_monitor()
+        monitor = SecurityMonitor()
+        self.log_watcher = JsonlLogWatcher(
+            path, monitor,
+            on_alert=lambda alert: self.win.after(0, self._display_alert, alert)
+        )
+        try:
+            self.log_watcher.start()
+            self.monitor_status.set("MONITORANDO NOVOS EVENTOS • RESPOSTA EM SIMULAÇÃO")
+            self._append_monitor("Conectado ao arquivo. Eventos antigos foram ignorados; aguardando novos eventos.")
+        except Exception as exc:
+            self.log_watcher = None
+            messagebox.showerror("Monitoramento", str(exc), parent=self.win)
+
+    def stop_log_monitor(self):
+        if self.log_watcher:
+            self.log_watcher.stop()
+            self.log_watcher = None
+        if hasattr(self, "monitor_status"):
+            self.monitor_status.set("MONITORAMENTO DESLIGADO")
+
+    def _append_monitor(self, message):
+        self.monitor_result.configure(state="normal")
+        self.monitor_result.insert("end", message + "\\n")
+        self.monitor_result.see("end")
+        self.monitor_result.configure(state="disabled")
+
+    def _display_alert(self, alert):
+        line = (f"[{alert['severity']}] {alert['event_type']} • "
+                f"ator={alert['actor_id']} • {alert['reason']} • ação={alert['action']}")
+        self._append_monitor(line)
+        if self.on_report:
+            self.on_report("ALERTA DE SEGURANÇA", line)
+
+    def close(self):
+        self.stop_log_monitor()
+        self.win.destroy()
 
     def run_defensive(self):
         folder = filedialog.askdirectory(parent=self.win,
