@@ -37,6 +37,20 @@ class SecurityMonitorTests(unittest.TestCase):
         alert = monitor.process_event({"event_type":"admin_role_granted","actor_id":"user-2"})
         self.assertEqual(alert["action"], "DRY_RUN_ONLY")
 
+    def test_explicit_project_adapter_receives_high_risk_containment_request(self):
+        class FakeAdapter:
+            def __init__(self):
+                self.calls = []
+            def contain_actor(self, actor_id, reason):
+                self.calls.append((actor_id, reason))
+                return True
+        adapter = FakeAdapter()
+        monitor = SecurityMonitor(threshold=2, response_adapter=adapter, auto_contain=True)
+        monitor.process_event({"event_type":"login_failed","actor_id":"account-x"})
+        alert = monitor.process_event({"event_type":"login_failed","actor_id":"account-x"})
+        self.assertEqual(alert["action"], "CONTAINED")
+        self.assertEqual(adapter.calls[0][0], "account-x")
+
     def test_jsonl_watcher_processes_new_complete_records(self):
         with tempfile.TemporaryDirectory() as temp:
             log = Path(temp) / "events.jsonl"
