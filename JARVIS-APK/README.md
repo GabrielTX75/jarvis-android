@@ -5,7 +5,7 @@ Construir a primeira versão utilizável do JARVIS para Android, priorizando o S
 
 ## Capacidades previstas
 - Conversa em português brasileiro por voz e texto, com interrupção, repetição da resposta, controle de velocidade/voz e estados reais (iniciando, pronto, ouvindo, transcrevendo, processando, falando, aguardando confirmação, online, offline e erro).
-- IA online por backend com seleção/fallback entre provedores suportados (por exemplo OpenAI, Gemini e provedores compatíveis); nenhuma chave secreta embutida no APK.
+- IA online por endpoint compatível com OpenAI; o APK agora sugere Groq (`https://api.groq.com/openai/v1/chat/completions`) e o modelo `openai/gpt-oss-120b` como configuração inicial. A chave é inserida pelo usuário e guardada no armazenamento criptografado do Android; não está embutida no APK. Fallback automático entre provedores ainda não foi implementado.
 - Modo local/offline para funções que realmente possam rodar no aparelho: notas, tarefas, cálculos, histórico local e, após avaliação de desempenho, modelo compacto opcional. O A06 não deve ser tratado como capaz de executar modelos grandes.
 - Memória e histórico sincronizados na nuvem; fila local de alterações enquanto offline e sincronização posterior, com resolução de conflitos e controles para visualizar/exportar/apagar dados.
 - Visão de tela sob comando explícito (“olhe minha tela”), usando APIs Android adequadas, OCR/acessibilidade e captura autorizada; indicador visível durante captura e botão de parar.
