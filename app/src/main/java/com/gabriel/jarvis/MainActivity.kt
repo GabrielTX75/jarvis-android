@@ -62,7 +62,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         pendingWake = intent?.getBooleanExtra("wake", false) == true
         iniciarOuvirSeAtivo()
         window.statusBarColor = android.graphics.Color.rgb(7, 17, 31)
-        window.navigationBarColor = android.graphics.Color.rgb(10, 6, 4)
+        window.navigationBarColor = android.graphics.Color.rgb(7, 17, 31)
         tts = TextToSpeech(this, this)
         assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
