@@ -59,6 +59,7 @@ class JarvisApp:
         def save():
             self.config.update({k:e.get().strip() for k,e in fields.items() if k!="api_key"})
             keyring.set_password("JARVIS","api_key",fields["api_key"].get().strip())
+            self.config.pop("api_key",None)
             self.save_config(); w.destroy(); self.add("JARVIS","Configurações salvas no perfil local.")
         ttk.Button(w,text="Salvar",command=save).pack(pady=12)
 
