@@ -30,7 +30,9 @@ class JarvisApp:
         except Exception: return {"endpoint":"https://api.groq.com/openai/v1/chat/completions","model":"openai/gpt-oss-120b","api_key":""}
 
     def save_config(self):
-        CONFIG_FILE.write_text(json.dumps(self.config,ensure_ascii=False,indent=2),encoding="utf-8")
+        # API credentials belong only in the OS keyring, never in settings.json.
+        safe_config = {key: value for key, value in self.config.items() if key != "api_key"}
+        CONFIG_FILE.write_text(json.dumps(safe_config,ensure_ascii=False,indent=2),encoding="utf-8")
 
     def _styles(self):
         style = ttk.Style(self.root)
