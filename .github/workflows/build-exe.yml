@@ -1,0 +1,31 @@
+name: Build JARVIS EXE
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "JARVIS-EXE/**"
+      - ".github/workflows/build-exe.yml"
+permissions:
+  contents: read
+concurrency:
+  group: jarvis-exe-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: python -m pip install --upgrade pip pyinstaller==6.16.0
+      - name: Build EXE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS JARVIS-EXE/app/main.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Windows-EXE-${{ github.run_number }}
+          path: dist/JARVIS.exe
+          if-no-files-found: error
+          retention-days: 14
