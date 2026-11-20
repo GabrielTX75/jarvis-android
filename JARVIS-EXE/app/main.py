@@ -2,7 +2,10 @@ import json, os, subprocess, threading, urllib.request, urllib.error, webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 from pathlib import Path
-from urllib.parse import quote_plus\nfrom desktop_tools import capture_screen, read_screen_text\nfrom project_workspace import create_project, write_project_file\nfrom defensive_audit import audit_folder
+from urllib.parse import quote_plus
+from desktop_tools import capture_screen
+from project_workspace import create_project
+from defensive_audit import audit_folder
 
 APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "Jarvis"
 CONFIG_FILE = APP_DIR / "settings.json"
@@ -91,7 +94,10 @@ class JarvisApp:
             ttk.Button(w,text=label,command=lambda x=exe,l=label:self.open_app(x,l)).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Abrir navegador",command=self.open_browser).pack(fill="x",padx=18,pady=5)
         ttk.Button(w,text="Pesquisar na web",command=self.web_search).pack(fill="x",padx=18,pady=5)
-        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Auditar pasta local (defensivo)",command=self.audit_local).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)\n        ttk.Button(w,text="Criar projeto de código",command=self.new_project).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Auditar pasta local",command=self.audit_local).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Capturar tela (sob comando)",command=self.screen_capture).pack(fill="x",padx=18,pady=5)
+        ttk.Button(w,text="Modo Hacker defensivo",command=self.defensive).pack(fill="x",padx=18,pady=5)
         tk.Label(w,text="Controle genérico do mouse, leitura de tela e varreduras não estão habilitados nesta versão.",
                  bg="#0b1d2c",fg="#a9bdca",wraplength=390).pack(padx=18,pady=12)
 
@@ -108,6 +114,34 @@ class JarvisApp:
         q=simpledialog.askstring("Pesquisa na web","O que deseja pesquisar?")
         if q and messagebox.askyesno("Autorizar pesquisa","Pesquisar: "+q+"?"):
             webbrowser.open("https://www.google.com/search?q="+quote_plus(q)); self.add("FERRAMENTA","Pesquisa aberta; resultados não foram lidos.")
+
+    def new_project(self):
+        name=simpledialog.askstring("Novo projeto","Nome do projeto (letras, números, _ ou -):")
+        if not name:return
+        try:
+            path=create_project(name)
+            self.add("PROJETOS",f"Pasta criada: {path}. Código não é executado automaticamente.")
+        except Exception as e:messagebox.showerror("Projeto",str(e))
+
+    def audit_local(self):
+        folder=filedialog.askdirectory(title="Selecione uma pasta sua para revisão defensiva")
+        if not folder:return
+        if not messagebox.askyesno("Confirmar auditoria","Analisar arquivos desta pasta localmente?"):return
+        try:
+            findings=audit_folder(folder)
+            self.add("AUDITORIA",f"{len(findings)} ocorrências para revisão manual; isso não prova vulnerabilidade.")
+            for item in findings[:30]:
+                self.add("ACHADO",f"{item['file']}:{item['line']} — {item['pattern']}")
+        except Exception as e:messagebox.showerror("Auditoria",str(e))
+
+    def screen_capture(self):
+        if not messagebox.askyesno("Captura de tela","Autoriza capturar a tela atual?"):return
+        dest=filedialog.asksaveasfilename(defaultextension=".png",filetypes=[("PNG","*.png")])
+        if not dest:return
+        try:
+            capture_screen(dest)
+            self.add("VISÃO",f"Captura salva em {dest}.")
+        except Exception as e:messagebox.showerror("Captura",str(e))
 
     def defensive(self):
         messagebox.showinfo("Modo Hacker defensivo","Esta versão é informativa. Auditorias futuras exigirão propriedade/autorização, escopo definido e ambiente de teste. Não há invasão, coleta de credenciais ou extração de dados.")
