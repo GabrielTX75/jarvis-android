@@ -50,8 +50,8 @@ class SecurityMonitorTests(unittest.TestCase):
             watcher.start()
             try:
                 with log.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\\n")
-                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\\n")
+                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\n")
+                    stream.write(json.dumps({"event_type":"login_failed","actor_id":"u"}) + "\n")
                 self.assertTrue(ready.wait(3))
                 self.assertEqual(received[0]["severity"], "HIGH")
             finally:
