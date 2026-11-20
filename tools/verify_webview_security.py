@@ -1,6 +1,5 @@
 from html.parser import HTMLParser
 from pathlib import Path
-import re
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVITY = (ROOT / "app/src/main/java/com/gabriel/jarvis/MainActivity.kt").read_text(encoding="utf-8")
@@ -15,6 +14,7 @@ class Audit(HTMLParser):
         self.scripts = []
         self.frames = []
         self.inline_handlers = []
+        self.csp = ""
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -22,6 +22,8 @@ class Audit(HTMLParser):
             self.scripts.append(attrs)
         if tag in {"iframe", "frame", "object", "embed"}:
             self.frames.append(tag)
+        if tag == "meta" and attrs.get("http-equiv", "").lower() == "content-security-policy":
+            self.csp = attrs.get("content", "")
         self.inline_handlers.extend(
             (tag, key) for key in attrs if key.lower().startswith("on")
         )
@@ -30,13 +32,8 @@ class Audit(HTMLParser):
 audit = Audit()
 audit.feed(HTML)
 
-csp_match = re.search(
-    r'<meta[^>]+http-equiv=["\']Content-Security-Policy["\'][^>]+content=["\']([^"\']+)',
-    HTML,
-    re.IGNORECASE,
-)
-assert csp_match, "CSP meta tag ausente"
-csp = csp_match.group(1)
+csp = audit.csp
+assert csp, "CSP meta tag ausente"
 assert "script-src 'self' 'unsafe-inline'" in csp
 assert "frame-src 'none'" in csp
 assert "object-src 'none'" in csp
@@ -62,7 +59,7 @@ assert "setAcceptThirdPartyCookies(webView, false)" in ACTIVITY
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
-assert "<domain includeSubdomains=\"false\">localhost</domain>" in NETWORK
-assert "<domain includeSubdomains=\"false\">127.0.0.1</domain>" in NETWORK
+assert '<domain includeSubdomains="false">localhost</domain>' in NETWORK
+assert '<domain includeSubdomains="false">127.0.0.1</domain>' in NETWORK
 
 print("WebView security static audit: OK")
