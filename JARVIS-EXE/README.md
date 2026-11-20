@@ -25,9 +25,11 @@ As dependências de câmera são opcionais: OpenCV, MediaPipe e Pillow. O acesso
 
 ## JARVIS Security Lab — Blue Team e Red Team
 
-- **Blue Team (defensivo):** análise estática local da pasta escolhida pelo usuário, com confirmação de que o escopo é próprio/autorizado, ocorrências para revisão manual e relatório. A análise atual é básica e não certifica segurança.
-- **Red Team (atacante em laboratório):** roteiro interativo de simulação em cenários fictícios locais (aplicação web, API ou servidor). Ensina definição de escopo, revisão de autenticação/autorização, uso de dados sintéticos, evidência mínima, correção e reteste.
-- O perfil Red Team nesta versão **não** envia tráfego, não testa hosts reais, não explora serviços, não coleta credenciais, não exfiltra dados e não executa persistência/evasão. Testes técnicos futuros devem ficar limitados a laboratório próprio ou autorização documentada, com escopo explícito e ações reversíveis.
+- **Blue Team — auditoria local:** análise estática básica da pasta escolhida pelo usuário, com confirmação de escopo e ocorrências para revisão manual. Não certifica segurança.
+- **Blue Team — monitoramento de eventos:** acompanha novas linhas de um arquivo JSONL exportado pelo próprio projeto. Detecta sequência de falhas de autenticação, eventos sensíveis de privilégio/política e eventos suspeitos reportados pelo serviço. Trata eventos normalizados e mantém as respostas em simulação até existir um adaptador oficial do provedor.
+- **Formato de evento esperado:** um objeto JSON por linha, com `event_type` e `actor_id`; opcionalmente `timestamp` (ISO 8601) e `project_id`. Exemplos de tipos reconhecidos: `login_failed`, `auth_failed`, `admin_role_granted`, `privilege_escalation`, `security_policy_changed`, `rate_limit_triggered` e `suspicious_access`. O serviço conectado é responsável por exportar esses eventos; o JARVIS não consegue observar sozinho os registros privados de um provedor.
+- **Red Team:** permanece um roteiro educativo em cenários fictícios locais. Não envia tráfego, não testa hosts reais nem executa exploração. A evolução técnica deverá usar escopo próprio/autorizado, ambiente de teste, limites e validação não destrutiva.
+- **Contenção automática real:** ainda não está ligada. Para bloquear sessões ou contas, será necessário implementar e testar um adaptador específico (por exemplo, Supabase Auth ou provedor de hospedagem), com credenciais de menor privilégio, lista de ações permitidas, auditoria e mecanismo de reversão. O monitor atual não bloqueia usuários nem "contra-ataca" a origem.
 
 ## Plano geral de capacidades do JARVIS EXE
 
