@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus, quote
+from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, tavily_search
 
 import keyring
 from desktop_tools import capture_screen
@@ -416,42 +417,37 @@ class JarvisApp:
 
     def ask(self):
         try:
-            endpoint = self.config["endpoint"]
-            key = keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or ""
-            model = self.config["model"]
-            if not endpoint.startswith("https://"):
-                raise ValueError("O endpoint remoto precisa usar HTTPS.")
-            if not key or not model:
-                raise ValueError("Configure modelo e chave da API.")
-            body = json.dumps({
-                "model": model, "messages": self.history[-24:],
-                "max_completion_tokens": 8192, "stream": False
-            }).encode()
-            req = urllib.request.Request(endpoint, data=body, headers={
-                "Content-Type": "application/json", "Authorization": "Bearer " + key
-            }, method="POST")
-            with urllib.request.urlopen(req, timeout=90) as response:
-                data = json.loads(response.read().decode("utf-8"))
-            answer = data["choices"][0]["message"]["content"]
-            if isinstance(answer, list):
-                answer = "\n".join(x.get("text", "") for x in answer if isinstance(x, dict))
-            if not isinstance(answer, str) or not answer.strip():
-                raise ValueError("Resposta vazia ou formato inesperado.")
+            groq_key = keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or ""
+            gemini_key = keyring.get_password("JARVIS", "gemini_key") or ""
+            answer = None
+            provider = ""
+            errors = []
+            if groq_key:
+                try:
+                    answer = groq_chat(groq_key, self.config["model"], self.history,
+                                        endpoint=self.config["endpoint"])
+                    provider = "Groq"
+                except Exception as exc:
+                    errors.append("Groq: " + str(exc))
+            if answer is None and gemini_key:
+                try:
+                    answer = gemini_chat(gemini_key, self.history)
+                    provider = "Gemini (reserva)"
+                except Exception as exc:
+                    errors.append("Gemini: " + str(exc))
+            if answer is None:
+                raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq ou Gemini em Configurações."]))
             self.history.append({"role": "assistant", "content": answer})
-            self.root.after(0, lambda a=answer: self.add("JARVIS", a))
+            self.root.after(0, lambda a=answer, p=provider: self.add("JARVIS • " + p, a))
             self.root.after(0, lambda: self.status.set("ONLINE"))
-            self.root.after(0, lambda: self.ai_state.set("IA: conectada"))
+            self.root.after(0, lambda p=provider: self.ai_state.set("IA: " + p + " conectada"))
             if self.config.get("speak_replies"):
                 self.speak(answer)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read(1000).decode("utf-8", "replace")
-            self.root.after(0, lambda m=f"HTTP {exc.code}: {detail}": self.add("ERRO", m, True))
-            self.root.after(0, lambda: self.status.set("ERRO"))
-            self.root.after(0, lambda: self.ai_state.set("IA: erro"))
         except Exception as exc:
             msg = str(exc)
             self.root.after(0, lambda m=msg: self.add("ERRO", m, True))
             self.root.after(0, lambda: self.status.set("ERRO"))
+            self.root.after(0, lambda: self.ai_state.set("IA: erro"))
         finally:
             self.busy = False
 
@@ -825,11 +821,31 @@ class JarvisApp:
         if re.match(r"^(?:jarvis[, ]*)?(?:abra|abrir|abre)\s+(?:o\s+)?(?:youtube|you tube)$", text, re.I):
             self.open_internal_url("https://www.youtube.com", "VÍDEO")
             return True
-        search = re.match(r"^(?:jarvis[, ]*)?(?:pesquise|pesquisar|procure|buscar)\s+(?:na internet\s+)?(.+)$", text, re.I)
-        if search:
-            self.open_internal_url("https://www.google.com/search?q=" + quote_plus(search.group(1)), "PESQUISA")
+        search = re.match(r"^(?:jarvis[, ]*)?(?:pesquise|pesquisar|procure|buscar)\\s+(?:na internet\\s+)?(.+)$", text, re.I)
+        weather = re.match(r"^(?:jarvis[, ]*)?(?:qual|como está|como esta|me diga)\\s+(?:o\\s+)?(?:clima|tempo|previsão do tempo|previsao do tempo)(?:\\s+(?:em|de|para)\\s+(.+))?$", text, re.I)
+        query = search.group(1).strip() if search else ("clima e previsão atual " + (weather.group(1) or "").strip() if weather else "")
+        if query:
+            tavily_key = keyring.get_password("JARVIS", "tavily_key") or ""
+            if tavily_key:
+                self.add("PESQUISA", "Consultando a web com Tavily…")
+                threading.Thread(target=self._run_tavily_search, args=(query, tavily_key), daemon=True).start()
+            else:
+                self.open_internal_url("https://www.google.com/search?q=" + quote_plus(query), "PESQUISA")
+                self.add("JARVIS", "Tavily não configurada. Abri a pesquisa do Google no navegador interno.")
             return True
         return False
+
+    def _run_tavily_search(self, query, api_key):
+        try:
+            data = tavily_search(api_key, query, max_results=5)
+            lines = [data.get("answer") or "A pesquisa retornou estes resultados:", ""]
+            for item in data["results"]:
+                lines.extend([item["title"], item["content"], item["url"], ""])
+            rendered = "\\n".join(lines)[:6500]
+            self.root.after(0, lambda value=rendered: self.add("PESQUISA • TAVILY", value))
+        except Exception as exc:
+            message = str(exc)
+            self.root.after(0, lambda value=message: self.add("PESQUISA • ERRO", value, True))
 
     def open_internal_url(self, url, label="NAVEGADOR"):
         try:
