@@ -24,6 +24,7 @@ from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
 from security_lab import SecurityLab
+from internal_browser import InternalBrowser
 
 try:
     import psutil
@@ -72,6 +73,7 @@ class JarvisApp:
         self.busy = False
         self.voice_busy = False
         self.monitor_open = False
+        self.internal_browser = None
         self.started_at = time.time()
         self.status = tk.StringVar(value="PRONTO")
         self.connection = tk.StringVar(value="IA NÃO CONFIGURADA")
@@ -261,7 +263,8 @@ class JarvisApp:
         for label, action in [
             ("▣  Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
             ("▤  Bloco de notas", lambda: self.open_app("notepad.exe", "Bloco de Notas")),
-            ("🌐  Navegador", self.open_browser),
+            ("🌐  Navegador interno", self.open_browser),
+            ("▶  Abrir vídeo", self.open_video),
             ("📁  Abrir projetos", self.open_projects_folder),
             ("⌖  Planejar rota", self.drive),
             ("▧  Capturar tela", self.screen_capture)
@@ -526,16 +529,29 @@ class JarvisApp:
         except Exception as exc:
             messagebox.showerror("Controle", str(exc))
 
+    def open_internal_url(self, url, label="NAVEGADOR"):
+        try:
+            if self.internal_browser is None or self.internal_browser.window is None:
+                self.internal_browser = InternalBrowser(self.root, url)
+            else:
+                self.internal_browser.navigate(url)
+            self.add(label, "Página solicitada na janela do navegador interno do JARVIS.")
+        except Exception as exc:
+            messagebox.showerror("Navegador JARVIS", str(exc))
+
     def open_browser(self):
-        if messagebox.askyesno("Autorizar ação", "Abrir o navegador padrão?"):
-            webbrowser.open("https://www.google.com")
-            self.add("CONTROLE", "Solicitação enviada ao navegador padrão.")
+        if messagebox.askyesno("Navegador JARVIS", "Abrir o navegador dentro do JARVIS?"):
+            self.open_internal_url("https://www.google.com")
 
     def web_search(self):
         query = simpledialog.askstring("Pesquisa na web", "O que deseja pesquisar?")
-        if query and messagebox.askyesno("Confirmar pesquisa", "Pesquisar: " + query + "?"):
-            webbrowser.open("https://www.google.com/search?q=" + quote_plus(query))
-            self.add("PESQUISA", "Pesquisa aberta no navegador; os resultados não foram lidos pelo JARVIS.")
+        if query and messagebox.askyesno("Confirmar pesquisa", "Pesquisar dentro do JARVIS: " + query + "?"):
+            self.open_internal_url("https://www.google.com/search?q=" + quote_plus(query), "PESQUISA")
+
+    def open_video(self):
+        query = simpledialog.askstring("Vídeo", "Qual vídeo deseja assistir?")
+        if query and messagebox.askyesno("Abrir vídeo", "Pesquisar este vídeo no YouTube dentro do JARVIS?\\n" + query):
+            self.open_internal_url("https://www.youtube.com/results?search_query=" + quote_plus(query), "VÍDEO")
 
     def new_project(self):
         name = simpledialog.askstring("Novo projeto", "Nome do projeto (letras, números, _ ou -):")
@@ -588,8 +604,8 @@ class JarvisApp:
             return
         if messagebox.askyesno("Abrir navegação", f"Abrir rota até {destination} no navegador?"):
             url = "https://www.google.com/maps/dir/?api=1&destination=" + quote_plus(destination)
-            webbrowser.open(url)
-            self.add("JARVIS DRIVE", "Rota aberta no Google Maps. O JARVIS não controla o veículo nem confirma sua localização atual.")
+            self.open_internal_url(url, "JARVIS DRIVE")
+            self.add("JARVIS DRIVE", "Rota aberta no navegador interno. O JARVIS não controla o veículo nem confirma sua localização atual.")
 
     def open_projects_folder(self):
         from project_workspace import ROOT
