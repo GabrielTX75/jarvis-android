@@ -415,11 +415,11 @@ class JarvisApp:
             return
         if sr is None:
             messagebox.showinfo("Comandos de voz",
-                "Reconhecimento de fala ainda não está instalado. Instale SpeechRecognition e PyAudio para ativar o microfone. O JARVIS não faz identificação biométrica de voz.")
+                "Reconhecimento de fala opcional: instale SpeechRecognition e PyAudio. A transcrição usa o serviço online do Google; não identifica o locutor. A leitura em voz alta usa síntese local quando pyttsx3 está instalado.")
             return
         self.voice_busy = True
         self.status.set("OUVINDO")
-        self.add("JARVIS", "Microfone ativado para reconhecer o comando. Não há identificação de quem está falando.")
+        self.add("JARVIS", "Microfone ativado. A transcrição usa o serviço online de reconhecimento do Google; não identifica quem está falando.")
         threading.Thread(target=self._listen_worker, daemon=True).start()
 
     def _listen_worker(self):
