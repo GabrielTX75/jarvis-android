@@ -97,7 +97,7 @@ def groq_chat(api_key, model, messages, endpoint="https://api.groq.com/openai/v1
     return answer
 
 
-def gemini_chat(api_key, messages, model="gemini-2.0-flash"):
+def gemini_chat(api_key, messages, model="gemini-3.8-flash"):
     if not api_key:
         raise ApiServiceError("Chave Gemini não configurada.")
     contents = []
