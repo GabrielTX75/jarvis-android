@@ -1,3 +1,4 @@
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -6,6 +7,7 @@ ACTIVITY = (ROOT / "app/src/main/java/com/gabriel/jarvis/MainActivity.kt").read_
 HTML = (ROOT / "app/src/main/assets/index.html").read_text(encoding="utf-8")
 MANIFEST = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 NETWORK = (ROOT / "app/src/main/res/xml/network_security_config.xml").read_text(encoding="utf-8")
+APP_JS = (ROOT / "app/src/main/assets/app.js").read_text(encoding="utf-8")
 
 
 class Audit(HTMLParser):
@@ -34,15 +36,18 @@ audit.feed(HTML)
 
 csp = audit.csp
 assert csp, "CSP meta tag ausente"
-assert "script-src 'self' 'unsafe-inline'" in csp
+assert "script-src 'self'" in csp
 assert "frame-src 'none'" in csp
 assert "object-src 'none'" in csp
 assert "base-uri 'none'" in csp
 assert "http://localhost:*" in csp and "http://127.0.0.1:*" in csp
 script_policy = next(part for part in csp.split(";") if part.strip().startswith("script-src"))
-assert "https:" not in script_policy and "'unsafe-eval'" not in script_policy
+assert "'unsafe-inline'" not in script_policy, "Scripts inline não devem ser autorizados"
+assert "'unsafe-eval'" not in script_policy
 
-assert len(audit.scripts) == 1 and "src" not in audit.scripts[0], "Scripts remotos não são permitidos"
+assert len(audit.scripts) == 1 and audit.scripts[0].get("src") == "app.js", "A página deve carregar somente o JavaScript local empacotado"
+assert APP_JS.strip(), "app.js não pode estar vazio"
+assert not re.search(r"\beval\s*\(|\bnew\s+Function\s*\(|document\.write\s*\(", APP_JS), "JavaScript dinâmico perigoso detectado"
 assert not audit.frames, "A página não deve criar frames ou objetos incorporados"
 assert not audit.inline_handlers, "Atributos de evento inline não são permitidos"
 
