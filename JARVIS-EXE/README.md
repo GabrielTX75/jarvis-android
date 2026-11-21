@@ -104,7 +104,7 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 
 ## APIs gratuitas — integração funcional no EXE
 - **Groq:** provedor principal do chat, usando o modelo configurado.
-- **Gemini:** provedor reserva automático quando Groq falha e a chave Gemini está cadastrada. A versão atual usa Gemini 2.0 Flash; disponibilidade e cota dependem da conta Google.
+- **Gemini:** provedor reserva automático quando Groq falha e a chave Gemini está cadastrada. A versão atual usa Gemini 3.8 Flash; disponibilidade e cota dependem da conta Google.
 - **Tavily:** comandos "pesquise [assunto]" e perguntas como "qual o clima em [cidade]" consultam a web e exibem resposta e fontes quando a chave está salva. Sem Tavily, a pesquisa abre o Google no navegador interno.
 - **brapi:** JARVIS Money permite consultar cotações pelo código do ativo usando o token guardado. Valores são informativos, podem atrasar e não geram ordens.
 - **Cofre:** Configurações > Cofre de APIs. Windows Credential Manager via keyring. Campos vazios preservam credenciais; apagar credenciais remove Groq, Gemini, Tavily e brapi.
