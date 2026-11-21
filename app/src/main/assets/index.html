@@ -463,7 +463,7 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
 async function testAIConnection(){
  const status=$("#aiTestStatus"),button=$("#testAI");
  if(S.provider!=="local"){status.textContent="Selecione servidor compatível";return}
- S.endpoint=$("#endpoint").value.trim();S.model=$("#model").value.trim();S.apiKey=$("#apikey").value;
+ S.endpoint=$("#endpoint").value.trim();S.model=$("#model").value.trim();S.apiKey=$("#apikey").value.trim()||(ANDROID?(lerSegredo("groq_key")||lerSegredo("ai_key")):"");
  saveSet();
  if(!S.endpoint||!S.model){status.textContent="Informe endpoint e modelo";return}
  let u;try{u=new URL(S.endpoint)}catch{status.textContent="URL inválida";return}
@@ -537,7 +537,7 @@ const API_VAULT_NAMES={groq:"groq_key",gemini:"gemini_key",tavily:"tavily_key",b
 function preencherCofre(){
  $("#apikey").value="";$("#apiGemini").value="";$("#apiTavily").value="";$("#apiBrapi").value="";
  $("#buscaUrl").value=BUSCA_LOCAL.url||"";$("#buscaToken").value=BUSCA_LOCAL.token||"";
- for(const [id,name] of Object.entries(API_VAULT_NAMES)){const ok=!!lerSegredo(name),el=$("#apiStatus"+id[0].toUpperCase()+id.slice(1));if(el)el.textContent=ok?"Chave salva":"Não configurada"}
+ for(const [id,name] of Object.entries(API_VAULT_NAMES)){const ok=!!lerSegredo(name)||(id==="groq"&&!!lerSegredo("ai_key")),el=$("#apiStatus"+id[0].toUpperCase()+id.slice(1));if(el)el.textContent=ok?"Chave salva":"Não configurada"}
 }
 function limparCofre(){$("#apikey").value="";$("#apiGemini").value="";$("#apiTavily").value="";$("#apiBrapi").value="";$("#buscaUrl").value="";$("#buscaToken").value="";$("#pinEntrar").value="";$("#pinNovo").value="";$("#pinRepete").value=""}
 function limparCamposAPI(){for(const inputId of Object.values(API_VAULT_FIELDS))$("#"+inputId).value=""}
