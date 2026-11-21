@@ -18,6 +18,7 @@ from tkinter import ttk, messagebox, simpledialog, filedialog
 from pathlib import Path
 from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
+from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus
 
 import keyring
@@ -86,6 +87,17 @@ class JarvisApp:
         APP_DIR.mkdir(parents=True, exist_ok=True)
         self.config = self.load_config()
         self.reminders = ReminderManager(APP_DIR / "reminders.json")
+        self.command_router = CommandRouter()
+        self.command_router.register("reminders", self.try_reminder_command, priority=10)
+        self.command_router.register("browser", self.try_browser_command, priority=20)
+        self.modules = ModuleRegistry()
+        self.modules.register(ModuleStatus("ai", "IA conversacional", ("chat",), True, "Usa o provedor configurado"))
+        self.modules.register(ModuleStatus("reminders", "Lembretes", ("notifications", "calendar_local"), True, "Armazenamento local; EXE precisa permanecer aberto"))
+        self.modules.register(ModuleStatus("browser", "Navegador interno", ("web_navigation",), True, "Abre páginas; pesquisa API dedicada ainda não conectada"))
+        self.modules.register(ModuleStatus("maps", "Mapas e rotas", ("maps", "routes"), False, "Abre Google Maps; GPS e Routes API ainda não conectados"))
+        self.modules.register(ModuleStatus("holograms", "Hologramas 3D", ("3d", "hand_tracking"), True, "Laboratório esquemático; webcam opcional"))
+        self.modules.register(ModuleStatus("security", "Segurança defensiva", ("static_audit", "event_monitoring"), True, "Auditoria local e logs fornecidos; sem contenção remota"))
+        self.modules.register(ModuleStatus("finance", "Análise financeira", ("market_data",), False, "Sem provedor de cotações conectado"))
         self.history = [{"role": "system", "content": SYSTEM}]
         self.busy = False
         self.voice_busy = False
@@ -394,9 +406,7 @@ class JarvisApp:
             return
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
-        if self.try_reminder_command(prompt):
-            return
-        if self.try_browser_command(prompt):
+        if self.command_router.dispatch(prompt):
             return
         self.history.append({"role": "user", "content": prompt})
         self.busy = True
