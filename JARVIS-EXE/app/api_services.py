@@ -101,15 +101,22 @@ def gemini_chat(api_key, messages, model="gemini-2.0-flash"):
     if not api_key:
         raise ApiServiceError("Chave Gemini não configurada.")
     contents = []
+    system_text = ""
     for item in messages[-24:]:
         role = item.get("role")
+        if role == "system":
+            system_text = str(item.get("content", ""))[:6000]
+            continue
         if role not in ("user", "assistant"):
             continue
         contents.append({"role": "model" if role == "assistant" else "user",
                          "parts": [{"text": str(item.get("content", ""))[:12000]}]})
+    if not contents or contents[-1]["role"] != "user":
+        raise ApiServiceError("A conversa não contém uma mensagem do usuário para enviar.")
     url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + urllib.parse.quote(api_key, safe="")
     data = _request(url, method="POST", headers={"Content-Type": "application/json"},
-                    payload={"contents": contents, "generationConfig": {"maxOutputTokens": 4096}}, timeout=90)
+                    payload={"systemInstruction": {"parts": [{"text": system_text}]} if system_text else None,
+                    "contents": contents, "generationConfig": {"maxOutputTokens": 4096}}, timeout=90)
     parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
     answer = "\\n".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
     if not answer.strip():
