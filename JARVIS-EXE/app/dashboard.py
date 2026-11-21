@@ -821,8 +821,8 @@ class JarvisApp:
         if re.match(r"^(?:jarvis[, ]*)?(?:abra|abrir|abre)\s+(?:o\s+)?(?:youtube|you tube)$", text, re.I):
             self.open_internal_url("https://www.youtube.com", "VÍDEO")
             return True
-        search = re.match(r"^(?:jarvis[, ]*)?(?:pesquise|pesquisar|procure|buscar)\\s+(?:na internet\\s+)?(.+)$", text, re.I)
-        weather = re.match(r"^(?:jarvis[, ]*)?(?:qual|como está|como esta|me diga)\\s+(?:o\\s+)?(?:clima|tempo|previsão do tempo|previsao do tempo)(?:\\s+(?:em|de|para)\\s+(.+))?$", text, re.I)
+        search = re.match(r"^(?:jarvis[, ]*)?(?:pesquise|pesquisar|procure|buscar)\s+(?:na internet\s+)?(.+)$", text, re.I)
+        weather = re.match(r"^(?:jarvis[, ]*)?(?:qual|como está|como esta|me diga)\s+(?:o\s+)?(?:clima|tempo|previsão do tempo|previsao do tempo)(?:\s+(?:em|de|para)\s+(.+))?$", text, re.I)
         query = search.group(1).strip() if search else ("clima e previsão atual " + (weather.group(1) or "").strip() if weather else "")
         if query:
             tavily_key = keyring.get_password("JARVIS", "tavily_key") or ""
@@ -841,7 +841,7 @@ class JarvisApp:
             lines = [data.get("answer") or "A pesquisa retornou estes resultados:", ""]
             for item in data["results"]:
                 lines.extend([item["title"], item["content"], item["url"], ""])
-            rendered = "\\n".join(lines)[:6500]
+            rendered = "\n".join(lines)[:6500]
             self.root.after(0, lambda value=rendered: self.add("PESQUISA • TAVILY", value))
         except Exception as exc:
             message = str(exc)
@@ -868,7 +868,7 @@ class JarvisApp:
 
     def open_video(self):
         query = simpledialog.askstring("Vídeo", "Qual vídeo deseja assistir?")
-        if query and messagebox.askyesno("Abrir vídeo", "Pesquisar este vídeo no YouTube dentro do JARVIS?\\n" + query):
+        if query and messagebox.askyesno("Abrir vídeo", "Pesquisar este vídeo no YouTube dentro do JARVIS?\n" + query):
             self.open_internal_url("https://www.youtube.com/results?search_query=" + quote_plus(query), "VÍDEO")
 
     def new_project(self):
