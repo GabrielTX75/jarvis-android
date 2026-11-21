@@ -6,7 +6,7 @@ on:
       - "JARVIS-EXE/**"
       - ".github/workflows/build-exe.yml"
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: jarvis-exe-${{ github.ref }}
   cancel-in-progress: true
@@ -26,10 +26,17 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s JARVIS-EXE/tests -v
       - name: Build EXE
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS JARVIS-EXE/app/main.py
-      - uses: actions/upload-artifact@v4
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS --collect-all pyttsx3 --hidden-import=pyttsx3.drivers.sapi5 JARVIS-EXE/app/main.py
+      - name: Publicar EXE em GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: JARVIS-Windows-EXE-${{ github.run_number }}
-          path: dist/JARVIS.exe
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: exe-latest
+          name: JARVIS EXE — versão mais recente
+          body: |
+            Executável Windows compilado automaticamente.
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Confira o README para dependências opcionais e configuração inicial.
+          files: dist/JARVIS.exe
+          fail_on_unmatched_files: true
+          make_latest: false
