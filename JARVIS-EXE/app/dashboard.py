@@ -16,6 +16,8 @@ import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 from pathlib import Path
+from datetime import datetime, timedelta
+from reminders import ReminderManager, parse_reminder
 from urllib.parse import quote_plus
 
 import keyring
@@ -27,6 +29,11 @@ from money_lab import MoneyLab
 from security_lab import SecurityLab
 from internal_browser import InternalBrowser
 
+try:
+    from winotify import Notification, audio
+except Exception:
+    Notification = None
+    audio = None
 try:
     import psutil
 except Exception:
@@ -78,6 +85,7 @@ class JarvisApp:
         root.configure(bg=BG)
         APP_DIR.mkdir(parents=True, exist_ok=True)
         self.config = self.load_config()
+        self.reminders = ReminderManager(APP_DIR / "reminders.json")
         self.history = [{"role": "system", "content": SYSTEM}]
         self.busy = False
         self.voice_busy = False
@@ -283,6 +291,7 @@ class JarvisApp:
             ("▶  Abrir vídeo", self.open_video),
             ("📁  Abrir projetos", self.open_projects_folder),
             ("⌖  Planejar rota", self.drive),
+            ("⏰  Meus lembretes", self.open_reminders),
             ("▧  Capturar tela", self.screen_capture)
         ]:
             self.button(quick_tools, label, action, compact=True).pack(fill="x", pady=2)
@@ -345,6 +354,7 @@ class JarvisApp:
         self.clock.configure(text=time.strftime("%H:%M:%S", now))
         self.date_label.configure(text=time.strftime("%d/%m/%Y", now))
         self._system_stats()
+        self._check_reminders()
         self.root.after(3000, self._tick)
 
     def _system_stats(self):
@@ -384,6 +394,8 @@ class JarvisApp:
             return
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
+        if self.try_reminder_command(prompt):
+            return
         if self.try_browser_command(prompt):
             return
         self.history.append({"role": "user", "content": prompt})
@@ -619,6 +631,73 @@ class JarvisApp:
             self.add("CONTROLE", label + " aberto.")
         except Exception as exc:
             messagebox.showerror("Controle", str(exc))
+
+    def try_reminder_command(self, prompt):
+        parsed = parse_reminder(prompt)
+        if not parsed:
+            return False
+        title, when = parsed
+        if when <= datetime.now():
+            self.add("JARVIS", "Esse horário já passou. Informe um horário futuro.")
+            return True
+        notify_time = when - timedelta(minutes=10)
+        if not messagebox.askyesno(
+            "Confirmar lembrete",
+            f"Compromisso: {title}\nHorário: {when.strftime('%d/%m/%Y às %H:%M')}\n\n"
+            f"Vou avisar às {notify_time.strftime('%H:%M')}, exatamente 10 minutos antes. Confirmar?"
+        ):
+            self.add("JARVIS", "Lembrete não criado.")
+            return True
+        self.reminders.add(title, when)
+        self.add("JARVIS", f"Lembrete salvo: {title}, às {when.strftime('%d/%m/%Y %H:%M')}. "
+                           "Vou notificar 10 minutos antes. O JARVIS precisa estar aberto no Windows.")
+        return True
+
+    def _check_reminders(self):
+        for item in self.reminders.due():
+            event_time = datetime.fromisoformat(item["when"])
+            body = f"{item.get('title', 'Compromisso')} — às {event_time.strftime('%H:%M')}"
+            if Notification is not None:
+                try:
+                    toast = Notification(app_id="JARVIS", title="Lembrete do JARVIS", msg=body, duration="long")
+                    if audio is not None:
+                        toast.set_audio(audio.Default, loop=False)
+                    toast.show()
+                    self.add("LEMBRETE", body)
+                    continue
+                except Exception:
+                    pass
+            self.root.after(0, lambda b=body: messagebox.showinfo("Lembrete do JARVIS", b))
+            self.add("LEMBRETE", body)
+
+    def open_reminders(self):
+        win = tk.Toplevel(self.root)
+        win.title("Lembretes do JARVIS")
+        win.configure(bg=PANEL)
+        win.geometry("520x420")
+        tk.Label(win, text="COMPROMISSOS AGENDADOS", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=16, pady=14)
+        frame = tk.Frame(win, bg=PANEL)
+        frame.pack(fill="both", expand=True, padx=16)
+        items = self.reminders.upcoming(30)
+        if not items:
+            tk.Label(frame, text="Nenhum compromisso futuro.", bg=PANEL, fg=MUTED).pack(anchor="w")
+        for item in items:
+            when = datetime.fromisoformat(item["when"])
+            row = tk.Frame(frame, bg=CARD, padx=10, pady=8)
+            row.pack(fill="x", pady=3)
+            tk.Label(row, text=f"{when.strftime('%d/%m/%Y %H:%M')}  •  {item['title']}",
+                     bg=CARD, fg=TEXT, anchor="w").pack(side="left", fill="x", expand=True)
+            tk.Button(row, text="Cancelar", command=lambda rid=item["id"], w=row: self._cancel_reminder(rid, w),
+                      bg="#512331", fg=TEXT, relief="flat").pack(side="right")
+        tk.Label(win, text="Todos os avisos são programados para 10 minutos antes.\n"
+                          "No EXE, mantenha o JARVIS aberto para o monitor de lembretes funcionar.",
+                 bg=PANEL, fg=MUTED, justify="left").pack(anchor="w", padx=16, pady=12)
+
+    def _cancel_reminder(self, reminder_id, row):
+        if self.reminders.cancel(reminder_id):
+            row.destroy()
+            self.add("LEMBRETE", "Compromisso cancelado.")
 
     def try_browser_command(self, prompt):
         """Handle explicit, low-risk open/search requests in the JARVIS browser."""
