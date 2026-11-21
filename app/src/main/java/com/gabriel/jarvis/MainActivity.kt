@@ -224,22 +224,20 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                     "tavily" -> "https://api.tavily.com/search"
                     else -> "https://brapi.dev/api/quote/PETR4?token=" + Uri.encode(key)
                 }
-                connection = (URL(target).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000
-                    readTimeout = 10000
-                    requestMethod = if (name == "tavily") "POST" else "GET"
-                    setRequestProperty("Accept", "application/json")
-                    if (name == "groq") setRequestProperty("Authorization", "Bearer $key")
-                    if (name == "tavily") {
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json")
-                    }
-                }
+                val conn = (URL(target).openConnection() as HttpURLConnection)
+                connection = conn
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+                conn.requestMethod = if (name == "tavily") "POST" else "GET"
+                conn.setRequestProperty("Accept", "application/json")
+                if (name == "groq") conn.setRequestProperty("Authorization", "Bearer $key")
                 if (name == "tavily") {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
                     val body = JSONObject().put("api_key", key).put("query", "teste de conexão").put("max_results", 1)
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 }
-                val code = connection.responseCode
+                val code = conn.responseCode
                 if (code in 200..299) "Conexão confirmada." else "A API respondeu HTTP $code."
             } catch (_: java.net.SocketTimeoutException) {
                 "Tempo esgotado. Verifique a internet e tente novamente."
