@@ -198,10 +198,12 @@ class JarvisApp:
         self.hero.bind("<Button-1>", lambda _e: self.focus_chat())
         self.hero_phase = 0
 
-        chat_panel = self.panel(center_col, "Conversa com o JARVIS", 10)
+        chat_panel = self.panel(center_col, None, 10)
         chat_panel.grid(row=1, column=0, sticky="nsew")
         chat_panel.grid_rowconfigure(1, weight=1)
         chat_panel.grid_columnconfigure(0, weight=1)
+        tk.Label(chat_panel, text="CONVERSA COM O JARVIS", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
         self.chat = tk.Text(chat_panel, bg="#041321", fg=TEXT, insertbackground=TEXT,
                             wrap="word", font=("Segoe UI", 9), relief="flat",
                             padx=12, pady=10, state="disabled", height=8)
@@ -345,7 +347,10 @@ class JarvisApp:
     def add(self, who, msg, error=False):
         self.chat.configure(state="normal")
         self.chat.insert("end", who + "\n", "speaker")
-        self.chat.insert("end", str(msg) + "\n\n", "error" if error else ())
+        if error:
+            self.chat.insert("end", str(msg) + "\n\n", "error")
+        else:
+            self.chat.insert("end", str(msg) + "\n\n")
         self.chat.see("end")
         self.chat.configure(state="disabled")
 
