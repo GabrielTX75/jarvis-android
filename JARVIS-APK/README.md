@@ -41,3 +41,13 @@ Construir a primeira versão utilizável do JARVIS para Android, priorizando o S
 
 ## Estado atual
 Este diretório é a organização-alvo. A implementação existente ainda precisa ser migrada/revisada e testada; este documento não afirma que as funções acima já estejam prontas.
+
+
+## Cofre local de APIs — implementação em desenvolvimento
+- A tela Configurações > Chaves e Senhas passa a oferecer campos para Groq, Gemini, Tavily e brapi.
+- No APK instalado, as credenciais são gravadas pelo bridge nativo em EncryptedSharedPreferences (chaves e valores criptografados com AndroidX Security).
+- Os campos são limpos após salvar e o status mostra apenas se existe uma credencial; os valores não são colocados no localStorage, settings JSON, HTML ou Git.
+- Há testes de conexão individuais para Groq, Gemini, Tavily e brapi. Os testes consultam os endpoints oficiais e mostram apenas sucesso ou código HTTP/erro resumido.
+- O botão de apagar remove as quatro credenciais de API e a chave legada da IA; a opção de redefinir o cofre continua apagando também o PIN do cofre.
+- A chave Groq continua compatível com o campo de IA existente. As chaves Gemini, Tavily e brapi são armazenadas e testáveis; a integração funcional de cada serviço com os módulos de IA/pesquisa/finanças é uma etapa separada.
+- O cofre é local a este APK/aparelho. Não sincroniza com Windows até existir uma camada de sincronização segura.
