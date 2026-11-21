@@ -561,9 +561,37 @@ window.jarvisWhatsappMessage=async(key,titulo,remetente,texto0,grupo)=>{
  const destino=grupo?"o grupo "+titulo:remetente;
  draw("ai",ok?"Respondi no WhatsApp de "+destino+": "+resposta:"Não consegui enviar a resposta para "+destino+".",true);
 };
+function scheduleReminderCommand(text){
+ if(!ANDROID||!window.JarvisAndroid||typeof window.JarvisAndroid.scheduleReminder!=="function")return null;
+ if(!/\b(?:me\s+)?(?:avisa|lembra|lembre|recorda|recorde)\b/i.test(text))return null;
+ const tm=text.match(/\b(?:(?:às?|as)\s*)?(\d{1,2})(?::(\d{2}))?\s*h?\b/i);
+ if(!tm)return null;
+ const hour=Number(tm[1]),minute=Number(tm[2]||0);
+ if(hour>23||minute>59)return "Não reconheci o horário. Diga: “JARVIS, me avise da reunião às 15 horas”.";
+ const now=new Date(),when=new Date(now);
+ if(/\bdepois de amanhã\b/i.test(text))when.setDate(when.getDate()+2);
+ else if(/\bamanhã\b/i.test(text))when.setDate(when.getDate()+1);
+ when.setHours(hour,minute,0,0);
+ if(when<=now)return "Esse horário já passou. Informe um horário futuro.";
+ let title=text.replace(/^\s*(?:jarvis[, ]*)?(?:por favor\s*)?(?:me\s+)?(?:avisa|lembra|lembre|recorda|recorde)\s*(?:de|da|do|sobre)?\s*/i,"");
+ title=title.replace(/\b(?:depois de amanhã|amanhã)\b/ig,"");
+ title=title.replace(/\b(?:(?:às?|as)\s*)?\d{1,2}(?::\d{2})?\s*h?\b/ig,"");
+ title=title.replace(/\b(?:pra mim|para mim|não esquecer|nao esquecer|por favor)\b/ig,"");
+ title=title.replace(/^\s*(?:na|no|em)\s+/i,"").replace(/\s+/g," ").trim();
+ if(!title)title="Compromisso";
+ let result="error";
+ try{result=String(window.JarvisAndroid.scheduleReminder(title,when.getTime()))}catch{}
+ if(result==="permission")return "Preciso da permissão de notificações. Autorize no Android e repita o lembrete.";
+ if(result==="past")return "Esse horário já passou. Informe um horário futuro.";
+ if(result==="exact")return "Lembrete salvo: "+title+" às "+when.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+". Vou avisar exatamente 10 minutos antes.";
+ if(result==="approximate")return "Lembrete salvo: "+title+". O Android ainda não liberou alarmes exatos; o aviso pode atrasar. Ative “Alarmes e lembretes” para o JARVIS nas configurações especiais do aplicativo.";
+ return "Não consegui agendar o lembrete. Confira as permissões e tente novamente.";
+}
 async function handle(text){
  stopRec();clearErr();S.quiet=0;S.cut=false;S.said="";const my=++S.req;
  addMsg("user",text);
+ const reminderReply=scheduleReminderCommand(text);
+ if(reminderReply){addMsg("ai",reminderReply,true);S.busy=true;await speak(reminderReply);if(my!==S.req)return;return after()}
  const sc=seriousVoiceCommand(text);
  if(sc){addMsg("ai",sc,true);S.busy=true;await speak(sc);if(my!==S.req)return;return after()}
  if(S.serious){S.seriousGoal=text.slice(0,160);saveSet()}renderSerious();
