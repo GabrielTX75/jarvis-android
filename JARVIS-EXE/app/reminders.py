@@ -87,17 +87,18 @@ def parse_reminder(text, now=None):
     if hour > 23 or minute > 59:
         return None
     day = now.date()
-    if re.search(r"\bamanh[ãa]\b", text, re.I):
-        day += timedelta(days=1)
-    elif re.search(r"\bdepois de amanhã\b", text, re.I):
+    if re.search(r"\bdepois de amanhã\b", text, re.I):
         day += timedelta(days=2)
+    elif re.search(r"\bamanh[ãa]\b", text, re.I):
+        day += timedelta(days=1)
     when = datetime.combine(day, datetime.min.time()).replace(hour=hour, minute=minute)
     if when <= now and day == now.date():
         return None
     title = re.sub(r"^\s*(?:jarvis[, ]*)?(?:me\s+)?(?:avisa|lembra|lembre-me|me\s+lembre|marca|agende)\s*(?:de|da|do|sobre)?\s*", "", text, flags=re.I)
     title = re.sub(r"\b(?:amanh[ãa]|depois de amanhã)\b", "", title, flags=re.I)
-    title = re.sub(r"\b(?:às?\s*)?\d{1,2}(?::\d{2})?\s*h?\b", "", title, flags=re.I)
+    title = re.sub(r"\b(?:(?:às?|as)\s*)?\d{1,2}(?::\d{2})?\s*h?\b", "", title, flags=re.I)
     title = re.sub(r"\b(?:por favor|pra mim|para mim|não esquecer|nao esquecer)\b", "", title, flags=re.I)
+    title = re.sub(r"^\s*(?:na|no|em)\s+", "", title, flags=re.I)
     title = re.sub(r"\s+", " ", title).strip(" ,.!?")
     if not title:
         title = "Compromisso"
