@@ -92,3 +92,12 @@ Código e workflow adicionados ao branch de desenvolvimento. A compilação e os
 ## Navegador interno do JARVIS
 
 O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge Chromium. Pesquisas, páginas, rotas do Maps e buscas de vídeos no YouTube são abertas nessa janela do JARVIS, sem enviar o usuário ao navegador padrão do Windows. O conteúdo de sites e vídeos depende da conexão, das políticas do site e do Microsoft Edge WebView2 Runtime instalado no Windows. O JARVIS não contorna paywalls, logins, DRM ou restrições dos sites. Para ações sensíveis (entrar em contas, enviar mensagens, publicar ou comprar), a implementação deve solicitar confirmação explícita e manter o usuário no controle.
+
+
+## Cofre de APIs — Windows
+- Configurações abre campos para Groq, Gemini, Tavily e brapi.
+- As credenciais são armazenadas pelo pacote `keyring` no Gerenciador de Credenciais do Windows; não são gravadas em `settings.json` nem no repositório.
+- Os campos secretos abrem vazios; deixar um campo vazio preserva a credencial já salva.
+- Há testes de conexão individuais. Os testes fazem chamadas HTTPS e exibem apenas o resultado/código HTTP, sem imprimir a chave.
+- A chave Groq é usada pelo chat compatível com OpenAI. Gemini, Tavily e brapi ficam guardadas e podem ser testadas; a integração funcional desses provedores aos módulos ainda precisa ser feita separadamente.
+- As credenciais do Windows são independentes das do APK até a implementação de sincronização.
