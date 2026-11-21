@@ -74,8 +74,8 @@ class MoneyLab:
         cards = tk.Frame(body, bg=BG)
         cards.pack(fill="x")
         for title, value, desc in [
-            ("DADOS DE MERCADO", "NÃO CONECTADO", "Fonte e horário serão exibidos quando integrados."),
-            ("ANÁLISE IA", "AGUARDANDO DADOS", "Sem sinais ou probabilidades inventadas."),
+            ("DADOS DE MERCADO", "BRAPI • CONSULTA", "Preço e variação aparecem após consultar um ativo."),
+            ("ANÁLISE IA", "NÃO ATIVADA", "Ainda não gera análises automáticas nem recomendações."),
             ("SIMULADOR", "DESLIGADO", "Nenhum saldo fictício ou operação foi iniciada."),
         ]:
             card = tk.Frame(cards, bg=CARD, padx=14, pady=16,
