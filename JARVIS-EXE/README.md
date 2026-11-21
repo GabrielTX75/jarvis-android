@@ -81,3 +81,8 @@ O JARVIS não deve invadir terceiros, roubar credenciais, persistir ocultamente,
 
 ## Estado de validação
 Código e workflow adicionados ao branch de desenvolvimento. A compilação e os testes ainda precisam concluir com sucesso no GitHub Actions e o EXE precisa ser testado em Windows antes de ser considerado pronto.
+
+
+## Navegador interno do JARVIS
+
+O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge Chromium. Pesquisas, páginas, rotas do Maps e buscas de vídeos no YouTube são abertas nessa janela do JARVIS, sem enviar o usuário ao navegador padrão do Windows. O conteúdo de sites e vídeos depende da conexão, das políticas do site e do Microsoft Edge WebView2 Runtime instalado no Windows. O JARVIS não contorna paywalls, logins, DRM ou restrições dos sites. Para ações sensíveis (entrar em contas, enviar mensagens, publicar ou comprar), a implementação deve solicitar confirmação explícita e manter o usuário no controle.
