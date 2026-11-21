@@ -77,6 +77,8 @@ class JarvisApp:
         self.connection = tk.StringVar(value="IA NÃO CONFIGURADA")
         self.location = tk.StringVar(value="Localização: não configurada")
         self._build()
+        self.ai_state.set("IA: configurada" if keyring.get_password("JARVIS", "api_key") else "IA: não configurada")
+        self.location.set("Localização: " + (self.config.get("location_label") or "não configurada"))
         self._tick()
         self.add("JARVIS", "Central de comando iniciada. Configure a IA para conversar.")
         self.root.protocol("WM_DELETE_WINDOW", self.close)
