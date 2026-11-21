@@ -42,7 +42,7 @@ class ReminderManager:
         due_items = []
         changed = False
         for item in self.items:
-            if item.get("notified"):
+            if item.get("notified") or item.get("cancelled"):
                 continue
             try:
                 notify_at = datetime.fromisoformat(item["notify_at"])
@@ -80,7 +80,7 @@ class ReminderManager:
 def parse_reminder(text, now=None):
     """Parse simple pt-BR reminders like 'me avisa da reunião às 15h'."""
     now = now or datetime.now()
-    match = re.search(r"\b(?:às?\s*)?(\d{1,2})(?::(\d{2}))?\s*h?\b", text, re.I)
+    match = re.search(r"\b(?:(?:às?|as)\s*)?(\d{1,2})(?::(\d{2}))?\s*h?\b", text, re.I)
     if not match:
         return None
     hour, minute = int(match.group(1)), int(match.group(2) or 0)
