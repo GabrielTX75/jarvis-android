@@ -27,6 +27,12 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 - JARVIS Drive abre uma rota do destino informado no Google Maps; não obtém posição GPS, não dirige e não controla o veículo.
 - O chat IA usa o endpoint configurado e não executa automaticamente comandos do computador.
 
+## Lembretes e notificações (implementação inicial)
+- O chat aceita comandos simples como “JARVIS, me avisa da reunião às 15h” e “me lembra da consulta amanhã às 9:30”.
+- O lembrete é salvo localmente e o JARVIS agenda uma notificação 10 minutos antes.
+- O monitor local verifica os lembretes enquanto o JARVIS EXE está aberto; mantenha o programa aberto e o Windows acordado para receber o aviso.
+- Mensagens para contatos e chamadas automáticas ainda não estão integradas. O envio deve usar serviço autorizado e confirmação; uma chamada deve abrir o discador/Phone Link para o usuário confirmar.
+
 ## Interface e módulos planejados (novembro de 2026)
 
 - Interface desktop reorganizada em central de comando, navegação lateral e chat, com paleta preto/azul-marinho/ciano; não usa laranja como cor de destaque.
