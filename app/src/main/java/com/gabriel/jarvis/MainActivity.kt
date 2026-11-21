@@ -27,6 +27,9 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.webkit.WebViewAssetLoader
 import java.util.Locale
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListener {
     private var pendingWake = false
@@ -45,7 +48,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     companion object {
         private const val REQ_AUDIO = 4102
         private const val REQ_NOTIF = 4103
-        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "pin_hash", "picovoice_key")
+        private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "gemini_key", "tavily_key", "brapi_key", "pin_hash", "picovoice_key")
     }
 
     private val secretPrefs by lazy {
@@ -201,6 +204,50 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun getSecret(name: String): String {
             if (name !in SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
+        }
+
+        @JavascriptInterface fun testApi(name: String): String {
+            val secretName = when (name) {
+                "groq" -> "groq_key"
+                "gemini" -> "gemini_key"
+                "tavily" -> "tavily_key"
+                "brapi" -> "brapi_key"
+                else -> return "Serviço não reconhecido."
+            }
+            val key = try { secretPrefs.getString(secretName, "") ?: "" } catch (_: Exception) { "" }
+            if (key.isBlank()) return "Chave não cadastrada."
+            var connection: HttpURLConnection? = null
+            return try {
+                val target = when (name) {
+                    "groq" -> "https://api.groq.com/openai/v1/models"
+                    "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models?key=" + Uri.encode(key)
+                    "tavily" -> "https://api.tavily.com/search"
+                    else -> "https://brapi.dev/api/quote/PETR4?token=" + Uri.encode(key)
+                }
+                connection = (URL(target).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    requestMethod = if (name == "tavily") "POST" else "GET"
+                    setRequestProperty("Accept", "application/json")
+                    if (name == "groq") setRequestProperty("Authorization", "Bearer $key")
+                    if (name == "tavily") {
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                }
+                if (name == "tavily") {
+                    val body = JSONObject().put("api_key", key).put("query", "teste de conexão").put("max_results", 1)
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                }
+                val code = connection.responseCode
+                if (code in 200..299) "Conexão confirmada." else "A API respondeu HTTP $code."
+            } catch (_: java.net.SocketTimeoutException) {
+                "Tempo esgotado. Verifique a internet e tente novamente."
+            } catch (_: Exception) {
+                "Não foi possível conectar. Verifique a chave e a internet."
+            } finally {
+                connection?.disconnect()
+            }
         }
         @JavascriptInterface fun allFilesAccessEnabled(): Boolean =
             Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()
