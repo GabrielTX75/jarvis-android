@@ -126,6 +126,16 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 "error"
             }
         }
+        @JavascriptInterface fun openExactAlarmSettings() {
+            if (Build.VERSION.SDK_INT >= 31) {
+                runOnUiThread {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            Uri.parse("package:$packageName")))
+                    } catch (_: Exception) {}
+                }
+            }
+        }
         @JavascriptInterface fun openDialer(number: String): Boolean {
             val clean = number.filter { it.isDigit() || it == '+' }
             if (clean.isBlank()) return false
