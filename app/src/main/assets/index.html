@@ -562,9 +562,10 @@ function testarAPI(id){
  if(status)status.textContent=result;
 }
 $("#saveApiVault").onclick=salvarAPIs;
-$("#clearApiVault").onclick=()=>{
+$("#clearApiVault").onclick=function(){
  if(!ANDROID){cofreMsg("Disponível no APK instalado.");return}
- if(!confirm("Apagar as quatro chaves de API salvas neste aparelho?"))return;
+ if(this.dataset.confirm!=="yes"){this.dataset.confirm="yes";this.textContent="Toque novamente para apagar";clearTimeout(this._confirmTimer);this._confirmTimer=setTimeout(()=>{this.dataset.confirm="";this.textContent="Apagar chaves de APIs"},5000);return}
+ clearTimeout(this._confirmTimer);this.dataset.confirm="";this.textContent="Apagar chaves de APIs";
  for(const name of Object.values(API_VAULT_NAMES))gravarSegredo(name,"");
  gravarSegredo("ai_key","");S.apiKey="";limparCamposAPI();preencherCofre();cofreMsg("Chaves de API apagadas.")
 };
