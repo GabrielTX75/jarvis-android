@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, quote
 
 import keyring
 from desktop_tools import capture_screen
@@ -110,7 +110,7 @@ class JarvisApp:
         self.connection = tk.StringVar(value="IA NÃO CONFIGURADA")
         self.location = tk.StringVar(value="Localização: não configurada")
         self._build()
-        self.ai_state.set("IA: configurada" if keyring.get_password("JARVIS", "api_key") else "IA: não configurada")
+        self.ai_state.set("IA: configurada" if (keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key")) else "IA: não configurada")
         self.location.set("Localização: " + (self.config.get("location_label") or "não configurada"))
         self._tick()
         self.add("JARVIS", "Central de comando iniciada. Configure a IA para conversar.")
@@ -417,7 +417,7 @@ class JarvisApp:
     def ask(self):
         try:
             endpoint = self.config["endpoint"]
-            key = keyring.get_password("JARVIS", "api_key") or ""
+            key = keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or ""
             model = self.config["model"]
             if not endpoint.startswith("https://"):
                 raise ValueError("O endpoint remoto precisa usar HTTPS.")
@@ -578,41 +578,123 @@ class JarvisApp:
 
     def settings(self):
         win = tk.Toplevel(self.root)
-        win.title("Configurações JARVIS")
+        win.title("Configurações e Cofre de APIs — JARVIS")
         win.configure(bg=PANEL)
+        win.geometry("760x760")
         fields = {}
+        api_services = {
+            "groq": ("Groq API Key", "groq_key"),
+            "gemini": ("Gemini API Key", "gemini_key"),
+            "tavily": ("Tavily API Key", "tavily_key"),
+            "brapi": ("brapi Token", "brapi_key"),
+        }
         for label, key, secret in [
-            ("Endpoint HTTPS", "endpoint", False),
+            ("Endpoint HTTPS da IA", "endpoint", False),
             ("Modelo", "model", False),
-            ("Chave da API (fica no Gerenciador de Credenciais)", "api_key", True),
+            ("Groq API Key (armazenada no Gerenciador de Credenciais)", "api_key", True),
             ("Localização salva (opcional; apenas rótulo)", "location_label", False)
         ]:
             tk.Label(win, text=label, bg=PANEL, fg=TEXT).pack(anchor="w", padx=16, pady=(10, 2))
-            entry = tk.Entry(win, width=66, show="*" if secret else None,
+            entry = tk.Entry(win, width=72, show="*" if secret else None,
                              bg="#09243a", fg=TEXT, insertbackground=TEXT, relief="flat")
-            entry.insert(0, self.config.get(key, ""))
+            if not secret:
+                entry.insert(0, self.config.get(key, ""))
             entry.pack(padx=16, ipady=6)
             fields[key] = entry
+
+        tk.Label(win, text="COFRE DE APIs — os campos secretos ficam vazios ao abrir.",
+                 bg=PANEL, fg=CYAN, font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(16, 4))
+        api_entries = {"groq": fields["api_key"]}
+        api_status = {}
+        for service, (label, credential_name) in api_services.items():
+            if service == "groq":
+                parent = tk.Frame(win, bg=PANEL)
+                parent.pack(fill="x", padx=16, pady=3)
+                status = tk.StringVar(value="Configurada" if keyring.get_password("JARVIS", credential_name) or keyring.get_password("JARVIS", "api_key") else "Não configurada")
+                tk.Label(parent, text="Groq — chave acima", bg=PANEL, fg=MUTED).pack(side="left")
+                tk.Label(parent, textvariable=status, bg=PANEL, fg=TEXT).pack(side="left", padx=10)
+            else:
+                tk.Label(win, text=label, bg=PANEL, fg=TEXT).pack(anchor="w", padx=16, pady=(7, 2))
+                row = tk.Frame(win, bg=PANEL)
+                row.pack(fill="x", padx=16)
+                entry = tk.Entry(row, width=58, show="*", bg="#09243a", fg=TEXT,
+                                 insertbackground=TEXT, relief="flat")
+                entry.pack(side="left", ipady=6)
+                api_entries[service] = entry
+                status = tk.StringVar(value="Configurada" if keyring.get_password("JARVIS", credential_name) else "Não configurada")
+                tk.Label(row, textvariable=status, bg=PANEL, fg=MUTED).pack(side="left", padx=8)
+            api_status[service] = status
+
+        def test_api(service):
+            entry = api_entries[service]
+            label, credential_name = api_services[service]
+            key = entry.get().strip() or keyring.get_password("JARVIS", credential_name) or ""
+            if not key and service == "groq":
+                key = keyring.get_password("JARVIS", "api_key") or ""
+            if not key:
+                api_status[service].set("Informe/salve a chave primeiro")
+                return
+
+            api_status[service].set("Testando…")
+            def worker():
+                try:
+                    if service == "groq":
+                        req = urllib.request.Request("https://api.groq.com/openai/v1/models",
+                            headers={"Authorization": "Bearer " + key, "Accept": "application/json"})
+                    elif service == "gemini":
+                        req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?key=" + quote(key, safe=""),
+                            headers={"Accept": "application/json"})
+                    elif service == "tavily":
+                        body = json.dumps({"api_key": key, "query": "teste de conexão", "max_results": 1}).encode()
+                        req = urllib.request.Request("https://api.tavily.com/search", data=body,
+                            headers={"Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+                    else:
+                        req = urllib.request.Request("https://brapi.dev/api/quote/PETR4?token=" + quote(key, safe=""),
+                            headers={"Accept": "application/json"})
+                    with urllib.request.urlopen(req, timeout=12) as response:
+                        ok = 200 <= response.status < 300
+                    result = "Conexão confirmada" if ok else "Resposta inesperada"
+                except urllib.error.HTTPError as exc:
+                    result = "HTTP " + str(exc.code) + " — confira chave e cota"
+                except Exception:
+                    result = "Falha de rede ou serviço indisponível"
+                self.root.after(0, lambda value=result, svc=service: api_status[svc].set(value))
+            threading.Thread(target=worker, daemon=True).start()
+
+        test_row = tk.Frame(win, bg=PANEL)
+        test_row.pack(fill="x", padx=16, pady=8)
+        for service in api_services:
+            self.button(test_row, "TESTAR " + service.upper(),
+                        lambda svc=service: test_api(svc), compact=True).pack(side="left", padx=3)
+
         speak_var = tk.BooleanVar(value=bool(self.config.get("speak_replies")))
         tk.Checkbutton(win, text="Ler respostas em voz alta (voz masculina pt-BR; requer internet)",
                        variable=speak_var, bg=PANEL, fg=TEXT, selectcolor=CARD,
                        activebackground=PANEL, activeforeground=TEXT).pack(anchor="w", padx=16, pady=10)
-        tk.Label(win, text="Voz: masculina pt-BR AntonioNeural. A síntese neural usa internet; não há troca automática para voz feminina.",
-                 bg=PANEL, fg=MUTED).pack(anchor="w", padx=16, pady=6)
+        tk.Label(win, text="As chaves são salvas no Gerenciador de Credenciais do Windows; nunca em settings.json.",
+                 bg=PANEL, fg=MUTED, wraplength=700, justify="left").pack(anchor="w", padx=16, pady=6)
+
         def save():
             for key, entry in fields.items():
-                if key != "api_key":
+                if key not in ("api_key",):
                     self.config[key] = entry.get().strip()
-            key = fields["api_key"].get().strip()
-            if key:
-                keyring.set_password("JARVIS", "api_key", key)
+            for service, entry in api_entries.items():
+                value = entry.get().strip()
+                if value:
+                    credential_name = api_services[service][1]
+                    keyring.set_password("JARVIS", credential_name, value)
+                    if service == "groq":
+                        keyring.set_password("JARVIS", "api_key", value)
+                # Empty fields preserve existing credentials; no accidental deletion.
             self.config["speak_replies"] = speak_var.get()
             self.save_config()
             self.location.set("Localização: " + (self.config["location_label"] or "não configurada"))
-            self.ai_state.set("IA: configurada" if keyring.get_password("JARVIS", "api_key") else "IA: chave ausente")
+            configured = bool(keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key"))
+            self.ai_state.set("IA: configurada" if configured else "IA: chave ausente")
             win.destroy()
-            self.add("JARVIS", "Configurações salvas.")
-        self.button(win, "SALVAR CONFIGURAÇÕES", save, accent=True).pack(pady=14, padx=16, fill="x")
+            self.add("JARVIS", "Configurações e cofre de APIs salvos com segurança.")
+
+        self.button(win, "SALVAR CHAVES E CONFIGURAÇÕES", save, accent=True).pack(pady=14, padx=16, fill="x")
 
     def tools(self):
         win = tk.Toplevel(self.root)
