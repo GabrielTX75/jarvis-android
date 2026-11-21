@@ -28,6 +28,7 @@ object ModulosJarvis {
         val base = root(ctx)
         val dir = File(base, name).canonicalFile
         require(dir.parentFile == base) { "Caminho de projeto inválido." }
+        require(!dir.exists()) { "Já existe um projeto com esse nome. Escolha outro nome para evitar sobrescrever arquivos." }
         val files = JSONArray(filesJson)
         require(files.length() in 1..80) { "Envie de 1 a 80 arquivos." }
         var total = 0L
