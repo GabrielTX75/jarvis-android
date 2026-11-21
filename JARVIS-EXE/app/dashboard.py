@@ -696,6 +696,24 @@ class JarvisApp:
 
         self.button(win, "SALVAR CHAVES E CONFIGURAÇÕES", save, accent=True).pack(pady=14, padx=16, fill="x")
 
+        def clear_api_keys():
+            if not messagebox.askyesno("Apagar credenciais", "Apagar Groq, Gemini, Tavily e brapi do Gerenciador de Credenciais?"):
+                return
+            for _service, (_label, credential_name) in api_services.items():
+                try:
+                    keyring.delete_password("JARVIS", credential_name)
+                except Exception:
+                    pass
+            try:
+                keyring.delete_password("JARVIS", "api_key")
+            except Exception:
+                pass
+            self.ai_state.set("IA: chave ausente")
+            win.destroy()
+            self.add("JARVIS", "Credenciais de API apagadas do Gerenciador de Credenciais.")
+
+        self.button(win, "APAGAR TODAS AS CHAVES", clear_api_keys).pack(pady=(0, 12), padx=16, fill="x")
+
     def tools(self):
         win = tk.Toplevel(self.root)
         win.title("Controle do computador")
