@@ -111,7 +111,7 @@ class JarvisApp:
         self.connection = tk.StringVar(value="IA NÃO CONFIGURADA")
         self.location = tk.StringVar(value="Localização: não configurada")
         self._build()
-        self.ai_state.set("IA: configurada" if (keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key")) else "IA: não configurada")
+        self.ai_state.set("IA: configurada" if (keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or keyring.get_password("JARVIS", "gemini_key")) else "IA: não configurada")
         self.location.set("Localização: " + (self.config.get("location_label") or "não configurada"))
         self._tick()
         self.add("JARVIS", "Central de comando iniciada. Configure a IA para conversar.")
@@ -685,7 +685,7 @@ class JarvisApp:
             self.config["speak_replies"] = speak_var.get()
             self.save_config()
             self.location.set("Localização: " + (self.config["location_label"] or "não configurada"))
-            configured = bool(keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key"))
+            configured = bool(keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or keyring.get_password("JARVIS", "gemini_key"))
             self.ai_state.set("IA: configurada" if configured else "IA: chave ausente")
             win.destroy()
             self.add("JARVIS", "Configurações e cofre de APIs salvos com segurança.")
@@ -704,6 +704,7 @@ class JarvisApp:
                 keyring.delete_password("JARVIS", "api_key")
             except Exception:
                 pass
+            self.config["api_key"] = ""
             self.ai_state.set("IA: chave ausente")
             win.destroy()
             self.add("JARVIS", "Credenciais de API apagadas do Gerenciador de Credenciais.")
