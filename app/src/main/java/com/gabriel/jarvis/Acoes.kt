@@ -54,6 +54,12 @@ object Acoes {
         "- continuar_codigo {}: retoma a geração de um código longo que parou.",
         "- status_codigo {}: diz em que parte está a geração do código.",
         "- parar_codigo {}: interrompe a geração do código longo.",
+        "- criar_projeto {\\"nome\\": \\"...\\", \\"arquivos\\": [{\\"path\\": \\"index.html\\", \\"content\\": \\"...\\"}]}: cria arquivos na pasta privada JARVIS/Projects; nunca executa o código.",
+        "- auditar_projeto {\\"nome\\": \\"...\\"}: análise estática preliminar de um projeto criado pelo JARVIS.",
+        "- listar_projetos {}: lista os projetos criados pelo JARVIS.",
+        "- analisar_eventos_seguranca {\\"eventos\\": [{\\"event_type\\": \\"login_failed\\", \\"actor_id\\": \\"id\\"}]}: analisa eventos fornecidos do seu próprio projeto e gera alertas; não bloqueia usuários.",
+        "- security_lab {}: informa os recursos e limites do laboratório defensivo.",
+        "- money_lab {}: informa o estado do módulo financeiro; sem cotações conectadas ou operações reais.",
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
@@ -101,6 +107,12 @@ object Acoes {
             "apagar_anotacoes" -> Ferramentas.apagarAnotacoes(ctx)
             "lembrete" -> Ferramentas.lembrete(ctx, args.optInt("minutos", 0), args.optString("texto"))
             "tocar_musica" -> Ferramentas.tocarMusica(ctx, args.optString("termo"))
+            "criar_projeto" -> ModulosJarvis.createProject(ctx, args.optString("nome"), args.optJSONArray("arquivos")?.toString() ?: "[]")
+            "auditar_projeto" -> ModulosJarvis.auditProject(ctx, args.optString("nome"))
+            "listar_projetos" -> "Projetos JARVIS: " + ModulosJarvis.projects(ctx)
+            "analisar_eventos_seguranca" -> ModulosJarvis.analyzeSecurityEvents(args.optJSONArray("eventos")?.toString() ?: "[]")
+            "security_lab" -> "Security Lab Android: auditoria estática dos projetos JARVIS e análise de eventos fornecidos pelo proprietário. A simulação Red Team é educativa; não há invasão, exploração de alvos nem contra-ataque."
+            "money_lab" -> "JARVIS MONEY está em modo de análise. Ainda não há fonte de cotações conectada, previsões ao vivo ou operações financeiras."
             else -> "Ainda não sei fazer isso."
         }
     } catch (e: Exception) {
