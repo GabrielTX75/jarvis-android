@@ -95,6 +95,47 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     inner class NativeBridge {
+        @JavascriptInterface fun scheduleReminder(title: String, eventTimeMillis: Long): String {
+            if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF) }
+                return "permission"
+            }
+            if (eventTimeMillis <= System.currentTimeMillis()) return "past"
+            return try {
+                val alarmManager = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+                val safeTitle = title.take(160).ifBlank { "Compromisso" }
+                val requestCode = (safeTitle + eventTimeMillis).hashCode()
+                val intent = Intent(this@MainActivity, ReminderReceiver::class.java)
+                    .putExtra("title", safeTitle)
+                    .putExtra("event_time", eventTimeMillis)
+                val pending = PendingIntent.getBroadcast(
+                    this@MainActivity, requestCode, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val triggerAt = maxOf(System.currentTimeMillis(), eventTimeMillis - 10 * 60 * 1000L)
+                val exactAllowed = Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()
+                if (exactAllowed) {
+                    alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pending)
+                    "exact"
+                } else {
+                    alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pending)
+                    "approximate"
+                }
+            } catch (_: Exception) {
+                "error"
+            }
+        }
+        @JavascriptInterface fun openDialer(number: String): Boolean {
+            val clean = number.filter { it.isDigit() || it == '+' }
+            if (clean.isBlank()) return false
+            return try {
+                runOnUiThread {
+                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$clean")))
+                }
+                true
+            } catch (_: Exception) { false }
+        }
         @JavascriptInterface fun startListening() { runOnUiThread { beginListening() } }
         @JavascriptInterface fun stopListening() { runOnUiThread { stopRecognition() } }
         @JavascriptInterface fun speak(text: String, id: String, rate: Float, pitch: Float) { runOnUiThread { speakNative(text, id, rate, pitch) } }
