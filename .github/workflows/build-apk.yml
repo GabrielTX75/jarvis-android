@@ -40,6 +40,19 @@ jobs:
           mv /tmp/vosk-pt/vosk-model-small-pt-0.3 app/src/main/assets/model-pt
           echo "vosk-model-small-pt-0.3" > app/src/main/assets/model-pt/uuid
 
+      - name: Validar sintaxe JavaScript do app
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
+          if not scripts:
+              raise SystemExit("Nenhum script inline encontrado")
+          Path("/tmp/jarvis-inline.js").write_text("\\n".join(scripts), encoding="utf-8")
+          PY
+          node --check /tmp/jarvis-inline.js
+
       - name: Compilar APK de depuração
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
