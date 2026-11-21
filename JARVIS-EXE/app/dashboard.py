@@ -73,8 +73,8 @@ RED = "#ff667a"
 
 SYSTEM = (
     "Você é o JARVIS, assistente em português do Brasil. Seja claro, útil e honesto. "
-    "Não diga que executou ações no computador; este chat não executa ferramentas por conta própria. "
-    "Quando o usuário pedir uma ação, explique qual botão ou módulo pode executá-la. "
+    "Só confirme uma ação local depois que o módulo correspondente retornar sucesso. "
+    "Se não houver ferramenta conectada, explique a limitação sem fingir execução. "
     "Nunca invente dados do sistema, localização, preços ou resultados de auditoria."
 )
 
@@ -576,7 +576,7 @@ class JarvisApp:
         win = tk.Toplevel(self.root)
         win.title("Configurações e Cofre de APIs — JARVIS")
         win.configure(bg=PANEL)
-        win.geometry("760x760")
+        win.geometry("820x860")
         fields = {}
         api_services = {
             "groq": ("Groq API Key", "groq_key"),
