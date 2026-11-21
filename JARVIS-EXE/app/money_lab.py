@@ -6,6 +6,8 @@ o horário da cotação e indisponibilidades, sem fabricar preços ou previsões
 """
 import tkinter as tk
 from tkinter import ttk
+import threading
+from api_services import ApiServiceError, brapi_quote
 
 BG = "#07111f"
 PANEL = "#0c1b2c"
@@ -16,7 +18,8 @@ MUTED = "#8ba9bd"
 
 
 class MoneyLab:
-    def __init__(self, parent):
+    def __init__(self, parent, api_key=None):
+        self.api_key = api_key or ""
         self.win = tk.Toplevel(parent)
         self.win.title("JARVIS MONEY — Inteligência de mercado")
         self.win.geometry("980x680")
@@ -51,10 +54,22 @@ class MoneyLab:
         tk.Label(notice, text="MODO DE ANÁLISE — SEM ORDENS REAIS",
                  bg="#172b3d", fg=CYAN, font=("Segoe UI", 10, "bold")).pack(anchor="w")
         tk.Label(notice,
-                 text="Este painel ainda não está conectado a uma fonte de cotações. "
-                      "Não há preços ao vivo, previsões ou operações em execução.",
+                 text="Consulta de cotações reais via brapi quando o token estiver configurado. "
+                      "Os dados podem ter atraso; nenhuma ordem ou transação é realizada.",
                  bg="#172b3d", fg=TEXT, wraplength=850, justify="left",
                  font=("Segoe UI", 9)).pack(anchor="w", pady=(5, 0))
+
+        quote_box = tk.Frame(body, bg=PANEL, padx=14, pady=12)
+        quote_box.pack(fill="x", pady=(0, 14))
+        tk.Label(quote_box, text="CONSULTAR ATIVO", bg=PANEL, fg=CYAN, font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        quote_row = tk.Frame(quote_box, bg=PANEL)
+        quote_row.pack(fill="x", pady=(8, 4))
+        self.ticker = tk.StringVar(value="PETR4")
+        ttk.Entry(quote_row, textvariable=self.ticker, width=18).pack(side="left", padx=(0, 8))
+        self.quote_button = ttk.Button(quote_row, text="Consultar cotação", style="Money.TButton", command=self.fetch_quote)
+        self.quote_button.pack(side="left")
+        self.quote_status = tk.StringVar(value="Token brapi configurado." if self.api_key else "Adicione o token brapi em Configurações > Cofre de APIs.")
+        tk.Label(quote_box, textvariable=self.quote_status, bg=PANEL, fg=MUTED, wraplength=850, justify="left").pack(anchor="w", pady=(5, 0))
 
         cards = tk.Frame(body, bg=BG)
         cards.pack(fill="x")
@@ -91,3 +106,25 @@ class MoneyLab:
         tk.Label(section,
                  text="Não realiza apostas, não conecta corretoras e não movimenta dinheiro.",
                  bg=PANEL, fg=MUTED, font=("Segoe UI", 8, "italic")).pack(anchor="w", pady=(12, 0))
+
+    def fetch_quote(self):
+        symbol = self.ticker.get().strip().upper()
+        if not self.api_key:
+            self.quote_status.set("Token brapi não configurado. Abra Configurações > Cofre de APIs.")
+            return
+        self.quote_button.configure(state="disabled")
+        self.quote_status.set("Consultando a fonte de mercado…")
+        def worker():
+            try:
+                data = brapi_quote(self.api_key, symbol)
+                price = data.get("price")
+                if not isinstance(price, (int, float)):
+                    raise ApiServiceError("A fonte não retornou um preço válido.")
+                change = data.get("change")
+                change_text = (" | variação {:+.2f}%".format(change) if isinstance(change, (int, float)) else "")
+                message = "{} — {}\nPreço informado: {:.2f} {}{}\nFonte: brapi | Referência: {}\nCotação informativa; pode haver atraso e não é recomendação.".format(data["symbol"], data["name"], price, data["currency"], change_text, data.get("updated") or "horário não informado")
+            except Exception as exc:
+                message = str(exc)
+            self.win.after(0, lambda value=message: self.quote_status.set(value))
+            self.win.after(0, lambda: self.quote_button.configure(state="normal"))
+        threading.Thread(target=worker, daemon=True).start()
