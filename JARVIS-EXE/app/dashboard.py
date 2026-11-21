@@ -5,6 +5,7 @@ system-monitoring dependencies fail closed with an explanatory message.
 """
 import json
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -368,6 +369,8 @@ class JarvisApp:
             return
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
+        if self.try_browser_command(prompt):
+            return
         self.history.append({"role": "user", "content": prompt})
         self.busy = True
         self.status.set("PROCESSANDO")
@@ -528,6 +531,28 @@ class JarvisApp:
             self.add("CONTROLE", label + " aberto.")
         except Exception as exc:
             messagebox.showerror("Controle", str(exc))
+
+    def try_browser_command(self, prompt):
+        """Handle explicit, low-risk open/search requests in the JARVIS browser."""
+        text = prompt.strip()
+        video = re.match(r"^(?:jarvis[, ]*)?(?:abra|abrir|abre|mostre|mostrar)\s+(?:um\s+)?(?:vídeo|video)\s+(?:sobre\s+|de\s+|do\s+|da\s+)?(.+)$", text, re.I)
+        if video:
+            query = video.group(1).strip(" .!?")
+            self.open_internal_url("https://www.youtube.com/results?search_query=" + quote_plus(query), "VÍDEO")
+            self.add("JARVIS", "Encontrei a pesquisa de vídeos no YouTube. O resultado será exibido na janela interna; escolha o vídeo que deseja reproduzir.")
+            return True
+        site = re.match(r"^(?:jarvis[, ]*)?(?:abra|abrir|abre|acesse|acessar)\s+(?:o\s+)?(?:site\s+)?(https?://\S+|[\w.-]+\.[a-z]{2,}(?:/\S*)?)$", text, re.I)
+        if site:
+            self.open_internal_url(site.group(1), "NAVEGADOR")
+            return True
+        if re.match(r"^(?:jarvis[, ]*)?(?:abra|abrir|abre)\s+(?:o\s+)?(?:youtube|you tube)$", text, re.I):
+            self.open_internal_url("https://www.youtube.com", "VÍDEO")
+            return True
+        search = re.match(r"^(?:jarvis[, ]*)?(?:pesquise|pesquisar|procure|buscar)\s+(?:na internet\s+)?(.+)$", text, re.I)
+        if search:
+            self.open_internal_url("https://www.google.com/search?q=" + quote_plus(search.group(1)), "PESQUISA")
+            return True
+        return False
 
     def open_internal_url(self, url, label="NAVEGADOR"):
         try:
