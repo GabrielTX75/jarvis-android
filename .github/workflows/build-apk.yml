@@ -7,7 +7,7 @@ on:
       - "**"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: jarvis-apk-${{ github.ref }}
@@ -43,10 +43,15 @@ jobs:
       - name: Compilar APK de depuração
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Guardar APK para instalação e teste
-        uses: actions/upload-artifact@v4
+      - name: Publicar APK diretamente em Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: JARVIS-Android-debug-${{ github.run_number }}
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: apk-latest
+          name: JARVIS APK — versão mais recente
+          body: |
+            APK compilado automaticamente a partir do branch ${{ github.ref_name }}.
+            Commit: ${{ github.sha }}
+            Instale o arquivo JARVIS.apk em um dispositivo Android.
+          files: app/build/outputs/apk/debug/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true
