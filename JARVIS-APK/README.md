@@ -32,5 +32,12 @@ Construir a primeira versão utilizável do JARVIS para Android, priorizando o S
 5. Cada ferramenta deve reportar sucesso somente após confirmação do sistema/serviço.
 6. Documentar limitações reais; não exibir estados falsos nem alegar ações não realizadas.
 
+## Lembretes e notificações (implementação inicial)
+- Comandos em português para compromissos com horário, por exemplo: “JARVIS, me avise da reunião às 15h” ou “amanhã às 9:30”.
+- O alarme é programado para 10 minutos antes; se faltarem menos de 10 minutos, o aviso é programado para o momento atual.
+- O Android exibe uma notificação local. A permissão de notificações precisa estar autorizada.
+- O Android pode exigir a permissão especial “Alarmes e lembretes” para precisão; sem ela o sistema usa alarme sujeito a atrasos. O comportamento após reinicialização do aparelho ainda precisa ser implementado/testado.
+- Envio de mensagens para contatos e chamadas automáticas ainda não estão implementados. Ações de chamada devem abrir o discador e deixar o usuário confirmar.
+
 ## Estado atual
 Este diretório é a organização-alvo. A implementação existente ainda precisa ser migrada/revisada e testada; este documento não afirma que as funções acima já estejam prontas.
