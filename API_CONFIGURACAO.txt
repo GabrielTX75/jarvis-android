@@ -27,3 +27,11 @@ SEGURANÇA
 
 COMPATIBILIDADE
 Esta versão usa o formato de chat compatível com OpenAI. APIs de fornecedores que usam outro formato precisam de um adaptador/backend. Não basta colar qualquer API key: endpoint, modelo, autenticação e formato precisam corresponder.
+
+
+COFRE DE APIs (versão em desenvolvimento)
+- APK: Configurações > Chaves e Senhas. Groq, Gemini, Tavily e brapi são guardadas no armazenamento criptografado AndroidX Security.
+- Windows: Configurações. As mesmas credenciais são guardadas no Windows Credential Manager via keyring.
+- Deixe os campos vazios para manter a chave existente. O botão de apagar remove as credenciais de API.
+- Use os botões Testar para validar cada credencial. O teste não revela nem envia a chave ao chat.
+- Não envie chaves por conversa, prints ou arquivos. APK e EXE mantêm cofres separados até a sincronização ser construída.
