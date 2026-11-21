@@ -26,7 +26,7 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s JARVIS-EXE/tests -v
       - name: Build EXE
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS --collect-all pyttsx3 --hidden-import=pyttsx3.drivers.sapi5 JARVIS-EXE/app/main.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS --collect-all pyttsx3 --collect-all edge_tts --collect-all pygame --hidden-import=pyttsx3.drivers.sapi5 JARVIS-EXE/app/main.py
       - name: Publicar EXE em GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
