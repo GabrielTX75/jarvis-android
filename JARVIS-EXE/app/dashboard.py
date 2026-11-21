@@ -36,6 +36,14 @@ try:
 except Exception:
     sr = None
 try:
+    import edge_tts
+except Exception:
+    edge_tts = None
+try:
+    import pygame
+except Exception:
+    pygame = None
+try:
     import pyttsx3
 except Exception:
     pyttsx3 = None
@@ -73,6 +81,8 @@ class JarvisApp:
         self.history = [{"role": "system", "content": SYSTEM}]
         self.busy = False
         self.voice_busy = False
+        self.voice_button = None
+        self.voice_state = None
         self.monitor_open = False
         self.internal_browser = None
         self.started_at = time.time()
@@ -222,7 +232,11 @@ class JarvisApp:
                               relief="flat", font=("Segoe UI", 10))
         self.entry.grid(row=0, column=0, sticky="ew", ipady=9, padx=(0, 7))
         self.entry.bind("<Return>", lambda _e: self.send())
-        self.button(input_row, "🎙 FALAR", self.listen, compact=True).grid(row=0, column=1, padx=3)
+        self.voice_button = self.button(input_row, "🎙 OUVIR COMANDO", self.listen, compact=True)
+        self.voice_button.grid(row=0, column=1, padx=3)
+        self.voice_state = tk.StringVar(value="MICROFONE PRONTO")
+        tk.Label(chat_panel, textvariable=self.voice_state, bg=PANEL, fg=MUTED,
+                 font=("Segoe UI", 8, "bold")).grid(row=3, column=0, sticky="w", pady=(6, 0))
         self.button(input_row, "ENVIAR ➤", self.send, accent=True, compact=True).grid(row=0, column=2, padx=3)
 
         quick = tk.Frame(center_col, bg=BG)
@@ -418,52 +432,125 @@ class JarvisApp:
         finally:
             self.busy = False
 
+    def _voice_ui(self, listening, message=None):
+        if self.voice_button is not None:
+            self.voice_button.configure(
+                text="● ESCUTANDO..." if listening else "🎙 OUVIR COMANDO",
+                state="disabled" if listening else "normal",
+                bg="#123d58" if listening else CARD2
+            )
+        if self.voice_state is not None:
+            self.voice_state.set(message or ("MICROFONE ATIVO • FALE AGORA" if listening else "MICROFONE PRONTO"))
+        self.status.set("OUVINDO" if listening else "PRONTO")
+
     def listen(self):
         if self.voice_busy:
             return
         if sr is None:
             messagebox.showinfo("Comandos de voz",
-                "Reconhecimento de fala opcional: instale SpeechRecognition e PyAudio. A transcrição usa o serviço online do Google; não identifica o locutor. A leitura em voz alta usa síntese local quando pyttsx3 está instalado.")
+                "O reconhecimento de fala não está disponível. Verifique SpeechRecognition e PyAudio.")
             return
         self.voice_busy = True
-        self.status.set("OUVINDO")
-        self.add("JARVIS", "Microfone ativado. A transcrição usa o serviço online de reconhecimento do Google; não identifica quem está falando.")
+        self._voice_ui(True)
         threading.Thread(target=self._listen_worker, daemon=True).start()
 
     def _listen_worker(self):
         try:
             recognizer = sr.Recognizer()
+            recognizer.dynamic_energy_threshold = True
+            recognizer.pause_threshold = 0.75
+            recognizer.non_speaking_duration = 0.45
             with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                audio = recognizer.listen(source, timeout=6, phrase_time_limit=12)
+                recognizer.adjust_for_ambient_noise(source, duration=0.8)
+                audio = recognizer.listen(source, timeout=8, phrase_time_limit=18)
+            self.root.after(0, lambda: self._voice_ui(False, "TRANSCRIÇÃO • PROCESSANDO"))
             text = recognizer.recognize_google(audio, language="pt-BR")
             self.root.after(0, lambda t=text: self._voice_text(t))
+        except sr.WaitTimeoutError:
+            self.root.after(0, lambda: self._voice_ui(False, "TEMPO ESGOTADO • TOQUE PARA TENTAR NOVAMENTE"))
+        except sr.UnknownValueError:
+            self.root.after(0, lambda: self._voice_ui(False, "NÃO ENTENDI • FALE MAIS PERTO DO MICROFONE"))
+        except sr.RequestError:
+            self.root.after(0, lambda: self._voice_ui(False, "RECONHECIMENTO INDISPONÍVEL • VERIFIQUE A INTERNET"))
         except Exception as exc:
             msg = str(exc)
-            self.root.after(0, lambda m=msg: self.add("VOZ", "Não foi possível reconhecer: " + m, True))
-            self.root.after(0, lambda: self.status.set("PRONTO"))
+            self.root.after(0, lambda m=msg: self._voice_ui(False, "MICROFONE INDISPONÍVEL"))
+            self.root.after(0, lambda m=msg: self.add("VOZ", "Falha ao ouvir: " + m, True))
         finally:
             self.voice_busy = False
+            self.root.after(0, lambda: self.voice_button.configure(state="normal") if self.voice_button else None)
 
     def _voice_text(self, text):
         self.entry.delete(0, "end")
         self.entry.insert(0, text)
-        self.status.set("PRONTO")
+        self._voice_ui(False, "ENTENDI • " + text[:90])
         self.send()
 
     def speak(self, text):
-        if pyttsx3 is None:
-            self.root.after(0, lambda: self.add("VOZ", "Síntese de voz não instalada."))
-            return
+        """Speak with a fixed Brazilian Portuguese masculine neural voice."""
         def worker():
+            temp_path = None
             try:
-                engine = pyttsx3.init()
-                engine.setProperty("rate", 178)
-                engine.say(text[:3500])
-                engine.runAndWait()
-                engine.stop()
+                if edge_tts is not None and pygame is not None:
+                    import asyncio
+                    import tempfile
+                    voice = "pt-BR-AntonioNeural"
+                    temp = tempfile.NamedTemporaryFile(prefix="jarvis_voice_", suffix=".mp3", delete=False)
+                    temp_path = temp.name
+                    temp.close()
+                    async def generate():
+                        communicate = edge_tts.Communicate(
+                            text[:3500], voice=voice, rate="-6%", volume="+0%"
+                        )
+                        await communicate.save(temp_path)
+                    asyncio.run(generate())
+                    if not pygame.mixer.get_init():
+                        pygame.mixer.init()
+                    pygame.mixer.music.load(temp_path)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        time.sleep(0.12)
+                    pygame.mixer.music.unload()
+                    return
+                if pyttsx3 is not None:
+                    engine = pyttsx3.init()
+                    male_voice = None
+                    for candidate in engine.getProperty("voices"):
+                        name = (getattr(candidate, "name", "") or "").lower()
+                        gender = (getattr(candidate, "gender", "") or "").lower()
+                        langs = " ".join(
+                            x.decode("utf-8", "ignore") if isinstance(x, bytes) else str(x)
+                            for x in (getattr(candidate, "languages", []) or [])
+                        ).lower()
+                        male_hint = gender == "male" or any(
+                            token in name for token in ("male", "antonio", "daniel", "ricardo")
+                        )
+                        portuguese = "pt" in langs or any(
+                            token in name for token in ("portugu", "brazil", "brasil")
+                        )
+                        if male_hint and portuguese:
+                            male_voice = candidate.id
+                            break
+                    if male_voice:
+                        engine.setProperty("voice", male_voice)
+                        engine.setProperty("rate", 158)
+                        engine.setProperty("volume", 0.95)
+                        engine.say(text[:3500])
+                        engine.runAndWait()
+                        engine.stop()
+                        return
+                self.root.after(0, lambda: self.add(
+                    "VOZ", "Voz masculina pt-BR indisponível. Instale/ative a voz neural Antonio (pt-BR) e mantenha Edge TTS e pygame instalados."
+                ))
             except Exception as exc:
-                self.root.after(0, lambda: self.add("VOZ", "Falha na síntese: " + str(exc), True))
+                msg = str(exc)
+                self.root.after(0, lambda m=msg: self.add("VOZ", "Falha na voz masculina: " + m, True))
+            finally:
+                if temp_path:
+                    try:
+                        os.unlink(temp_path)
+                    except OSError:
+                        pass
         threading.Thread(target=worker, daemon=True).start()
 
     def settings(self):
