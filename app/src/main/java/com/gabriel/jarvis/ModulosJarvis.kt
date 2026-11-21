@@ -74,7 +74,7 @@ object ModulosJarvis {
         val findings = JSONArray()
         var scanned = 0
         var bytes = 0L
-        dir.walkTopDown().filter { it.isFile && !it.isSymbolicLink() }.forEach { file ->
+        dir.walkTopDown().onEnter { !it.isSymbolicLink() }.filter { it.isFile && !it.isSymbolicLink() }.forEach { file ->
             if (scanned >= 500 || bytes >= 10_000_000L || file.length() > 1_000_000L) return@forEach
             if (file.extension.lowercase() !in setOf("py","js","ts","tsx","jsx","html","kt","java","php","json","xml","yml","yaml","env","txt","sql","sh")) return@forEach
             val source = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return@forEach
@@ -90,6 +90,47 @@ object ModulosJarvis {
             .toString()
     } catch (e: Exception) {
         JSONObject().put("ok", false).put("message", e.message ?: "Falha na auditoria.").toString()
+    }
+
+    fun analyzeSecurityEvents(eventsJson: String): String = try {
+        val events = JSONArray(eventsJson)
+        require(events.length() <= 2000) { "Limite de 2.000 eventos por análise." }
+        val failures = mutableMapOf<String, Int>()
+        val alerts = JSONArray()
+        for (i in 0 until events.length()) {
+            val event = events.optJSONObject(i) ?: continue
+            val kind = event.optString("event_type").lowercase()
+            val actor = event.optString("actor_id").take(120)
+            if (actor.isBlank()) continue
+            var reason: String? = null
+            var severity = "LOW"
+            when (kind) {
+                "login_failed", "auth_failed" -> {
+                    val count = (failures[actor] ?: 0) + 1
+                    failures[actor] = count
+                    if (count >= 5) {
+                        severity = "HIGH"
+                        reason = "$count falhas de autenticação fornecidas para este identificador."
+                    }
+                }
+                "privilege_escalation", "admin_role_granted", "security_policy_changed" -> {
+                    severity = "HIGH"
+                    reason = "Evento sensível de privilégio ou política informado pelo serviço."
+                }
+                "rate_limit_triggered", "suspicious_access" -> {
+                    severity = "MEDIUM"
+                    reason = "Evento suspeito reportado pelo serviço conectado."
+                }
+            }
+            if (reason != null) alerts.put(JSONObject().put("severity", severity)
+                .put("event_type", kind).put("actor_id", actor).put("reason", reason)
+                .put("action", "ALERT_ONLY"))
+        }
+        JSONObject().put("ok", true).put("events_received", events.length())
+            .put("alerts", alerts).put("notice", "Análise dos eventos fornecidos. Não é monitoramento contínuo e nenhuma conta foi bloqueada.")
+            .toString()
+    } catch (e: Exception) {
+        JSONObject().put("ok", false).put("message", e.message ?: "Falha ao analisar eventos.").toString()
     }
 
     fun projects(ctx: Context): String = JSONArray().apply {
