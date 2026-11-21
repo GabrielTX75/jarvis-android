@@ -913,8 +913,9 @@ class JarvisApp:
         self.add("HOLOGRAM LAB", "Laboratório 3D aberto. A câmera fica desligada até ativação manual.")
 
     def open_money_lab(self):
-        MoneyLab(self.root)
-        self.add("JARVIS MONEY", "Painel de análise aberto. Ainda sem fonte de cotações conectada.")
+        token = keyring.get_password("JARVIS", "brapi_key") or ""
+        MoneyLab(self.root, api_key=token)
+        self.add("JARVIS MONEY", "Painel de análise aberto. Consulta brapi disponível quando o token estiver configurado.")
 
     def drive(self):
         destination = simpledialog.askstring("JARVIS DRIVE", "Destino para abrir no mapa:")
