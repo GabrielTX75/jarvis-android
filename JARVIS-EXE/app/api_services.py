@@ -91,7 +91,7 @@ def groq_chat(api_key, model, messages, endpoint="https://api.groq.com/openai/v1
         timeout=90)
     answer = data["choices"][0]["message"]["content"]
     if isinstance(answer, list):
-        answer = "\\n".join(x.get("text", "") for x in answer if isinstance(x, dict))
+        answer = "\n".join(x.get("text", "") for x in answer if isinstance(x, dict))
     if not isinstance(answer, str) or not answer.strip():
         raise ApiServiceError("A IA retornou uma resposta vazia.")
     return answer
@@ -118,7 +118,7 @@ def gemini_chat(api_key, messages, model="gemini-2.0-flash"):
                     payload={"systemInstruction": {"parts": [{"text": system_text}]} if system_text else None,
                     "contents": contents, "generationConfig": {"maxOutputTokens": 4096}}, timeout=90)
     parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    answer = "\\n".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
+    answer = "\n".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
     if not answer.strip():
         raise ApiServiceError("O Gemini retornou uma resposta vazia.")
     return answer
