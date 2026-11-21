@@ -101,3 +101,12 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - Há testes de conexão individuais. Os testes fazem chamadas HTTPS e exibem apenas o resultado/código HTTP, sem imprimir a chave.
 - A chave Groq é usada pelo chat compatível com OpenAI. Gemini, Tavily e brapi ficam guardadas e podem ser testadas; a integração funcional desses provedores aos módulos ainda precisa ser feita separadamente.
 - As credenciais do Windows são independentes das do APK até a implementação de sincronização.
+
+## APIs gratuitas — integração funcional no EXE
+- **Groq:** provedor principal do chat, usando o modelo configurado.
+- **Gemini:** provedor reserva automático quando Groq falha e a chave Gemini está cadastrada. A versão atual usa Gemini 2.0 Flash; disponibilidade e cota dependem da conta Google.
+- **Tavily:** comandos "pesquise [assunto]" e perguntas como "qual o clima em [cidade]" consultam a web e exibem resposta e fontes quando a chave está salva. Sem Tavily, a pesquisa abre o Google no navegador interno.
+- **brapi:** JARVIS Money permite consultar cotações pelo código do ativo usando o token guardado. Valores são informativos, podem atrasar e não geram ordens.
+- **Cofre:** Configurações > Cofre de APIs. Windows Credential Manager via keyring. Campos vazios preservam credenciais; apagar credenciais remove Groq, Gemini, Tavily e brapi.
+- **Sem banco de dados em nuvem obrigatório:** configurações e lembretes ficam locais. APK e EXE mantêm cofres separados; sincronização automática exigirá serviço remoto opcional.
+- **Testes:** `python -m unittest discover -s JARVIS-EXE/tests -v`. Testes de API usam respostas simuladas; não validam disponibilidade externa nem substituem testes reais com as chaves do usuário.
