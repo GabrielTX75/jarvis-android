@@ -105,7 +105,8 @@ class JarvisApp:
             "endpoint": data.get("endpoint", "https://api.groq.com/openai/v1/chat/completions"),
             "model": data.get("model", "openai/gpt-oss-120b"),
             "api_key": keyring.get_password("JARVIS", "api_key") or "",
-            "location_label": data.get("location_label", "")
+            "location_label": data.get("location_label", ""),
+            "speak_replies": bool(data.get("speak_replies", False))
         }
 
     def save_config(self):
@@ -571,10 +572,10 @@ class JarvisApp:
             entry.pack(padx=16, ipady=6)
             fields[key] = entry
         speak_var = tk.BooleanVar(value=bool(self.config.get("speak_replies")))
-        tk.Checkbutton(win, text="Ler respostas em voz alta (síntese local)",
+        tk.Checkbutton(win, text="Ler respostas em voz alta (voz masculina pt-BR; requer internet)",
                        variable=speak_var, bg=PANEL, fg=TEXT, selectcolor=CARD,
                        activebackground=PANEL, activeforeground=TEXT).pack(anchor="w", padx=16, pady=10)
-        tk.Label(win, text="A chave não é salva no arquivo settings.json.",
+        tk.Label(win, text="Voz: masculina pt-BR AntonioNeural. A síntese neural usa internet; não há troca automática para voz feminina.",
                  bg=PANEL, fg=MUTED).pack(anchor="w", padx=16, pady=6)
         def save():
             for key, entry in fields.items():
