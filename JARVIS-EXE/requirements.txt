@@ -16,3 +16,6 @@ pywebview==5.4
 # Natural male Brazilian Portuguese neural TTS (online) and MP3 playback
 edge-tts==7.2.3
 pygame==2.6.1
+
+# Native Windows toast notifications for reminders
+winotify==1.1.0
