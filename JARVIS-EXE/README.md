@@ -17,6 +17,16 @@ Abra Ferramentas → Laboratório de hologramas 3D. A câmera começa desligada;
 
 As dependências de câmera são opcionais: OpenCV, MediaPipe e Pillow. O acesso depende das permissões de câmera do Windows e de uma webcam funcional.
 
+## Central holográfica de comando — interface atualizada
+
+A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano: cabeçalho de estado, navegação, lista de módulos, núcleo visual animado, chat, atalhos e painel de sistema. CPU, memória, disco e bateria só são exibidos quando obtidos do Windows via psutil; localização permanece não configurada até o usuário informar um rótulo. O núcleo é uma animação 2D de interface, não uma projeção holográfica física.
+
+- Navegação para projetos, auditoria, Security Lab, Money, Drive, Hologram Lab, arquivos e configurações.
+- Ferramentas rápidas: calculadora, bloco de notas, navegador, mapa, pasta de projetos e captura de tela com confirmação.
+- Comando de voz por reconhecimento de fala opcional (SpeechRecognition/PyAudio) e leitura em voz alta opcional (pyttsx3). Não existe identificação biométrica do locutor.
+- JARVIS Drive abre uma rota do destino informado no Google Maps; não obtém posição GPS, não dirige e não controla o veículo.
+- O chat IA usa o endpoint configurado e não executa automaticamente comandos do computador.
+
 ## Interface e módulos planejados (novembro de 2026)
 
 - Interface desktop reorganizada em central de comando, navegação lateral e chat, com paleta preto/azul-marinho/ciano; não usa laranja como cor de destaque.
