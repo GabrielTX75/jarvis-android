@@ -61,6 +61,13 @@ assert "safeBrowsingEnabled = true" in ACTIVITY
 assert "allowFileAccessFromFileURLs = false" in ACTIVITY
 assert "allowUniversalAccessFromFileURLs = false" in ACTIVITY
 assert "setAcceptThirdPartyCookies(webView, false)" in ACTIVITY
+assert 'name == "ai_key"' in ACTIVITY, "A chave da IA não pode ser retornada ao JavaScript"
+assert "@JavascriptInterface fun requestAI(messagesJson: String, requestId: String)" in ACTIVITY
+assert "@JavascriptInterface fun cancelAI(requestId: String)" in ACTIVITY
+assert "connection.instanceFollowRedirects = false" in ACTIVITY
+assert "ai_approved_origin" in ACTIVITY, "O servidor remoto precisa de aprovação nativa"
+assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
+assert "requestNativeAI(messages" in APP_JS, "Android deve usar o transporte nativo"
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
