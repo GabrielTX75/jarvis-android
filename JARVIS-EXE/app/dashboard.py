@@ -434,9 +434,9 @@ class JarvisApp:
         try:
             request_history = [dict(item) for item in self.history]
             context = self.memory.prompt_context()
-            system_text = SYSTEM + "\\n\\n" + agent_instruction(self.agent_var.get())
+            system_text = SYSTEM + "\n\n" + agent_instruction(self.agent_var.get())
             if context:
-                system_text += "\\n\\n" + context
+                system_text += "\n\n" + context
             if request_history and request_history[0].get("role") == "system":
                 request_history[0]["content"] = system_text
             else:
@@ -979,7 +979,7 @@ class JarvisApp:
 
     def try_memory_command(self, prompt):
         text = prompt.strip()
-        remember = re.match(r"^(?:jarvis[, ]*)?(?:lembre(?:-se)?(?: de)?|guarde(?: que)?|memorize(?: que)?)\\s+(.+)$", text, re.I)
+        remember = re.match(r"^(?:jarvis[, ]*)?(?:lembre(?:-se)?(?: de)?|guarde(?: que)?|memorize(?: que)?)\s+(.+)$", text, re.I)
         if remember:
             fact = remember.group(1).strip().rstrip(".!?")
             try:
@@ -988,14 +988,14 @@ class JarvisApp:
             except Exception as exc:
                 self.add("MEMÓRIA LOCAL", str(exc), True)
             return True
-        if re.search(r"\\b(o que você lembra|o que voce lembra|minhas memórias|minhas memorias|listar memórias|listar memorias)\\b", text, re.I):
+        if re.search(r"\b(o que você lembra|o que voce lembra|minhas memórias|minhas memorias|listar memórias|listar memorias)\b", text, re.I):
             items = self.memory.list()
             if not items:
                 self.add("MEMÓRIA LOCAL", "Ainda não há fatos salvos.")
             else:
-                self.add("MEMÓRIA LOCAL", "\\n".join(f"{i}. {item}" for i, item in enumerate(items, 1)))
+                self.add("MEMÓRIA LOCAL", "\n".join(f"{i}. {item}" for i, item in enumerate(items, 1)))
             return True
-        if re.search(r"\\b(esqueça tudo|esqueca tudo|apague minhas memórias|apague minhas memorias|limpe a memória|limpe a memoria)\\b", text, re.I):
+        if re.search(r"\b(esqueça tudo|esqueca tudo|apague minhas memórias|apague minhas memorias|limpe a memória|limpe a memoria)\b", text, re.I):
             if messagebox.askyesno("Apagar memória local", "Apagar todos os fatos salvos neste computador?"):
                 count = self.memory.forget()
                 self.add("MEMÓRIA LOCAL", f"{count} fato(s) apagado(s).")
@@ -1052,7 +1052,7 @@ class JarvisApp:
                 self.add("VISÃO / OCR", "A captura foi feita, mas nenhum texto legível foi encontrado.")
                 return
             self.add("VISÃO / OCR", extracted[:6000])
-            self.history.append({"role": "user", "content": "Texto extraído da captura de tela autorizada (OCR local):\\n" + extracted[:6000]})
+            self.history.append({"role": "user", "content": "Texto extraído da captura de tela autorizada (OCR local):\n" + extracted[:6000]})
             self.agent_var.set("Visão")
         except Exception as exc:
             messagebox.showerror("Visão / OCR", str(exc))
