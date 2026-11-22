@@ -36,6 +36,7 @@ Esta alteração não remove permissões porque o código atual usa funcionalida
 - Cancelar no cliente desconecta a conexão nativa quando possível. Isso não garante que o provedor remoto interrompa processamento já recebido.
 - Limite residual: o campo da chave ainda é digitado em uma página WebView e seu valor passa transitoriamente pelo JavaScript para ser salvo no cofre. A chave de busca também continua acessível ao JavaScript. Uma migração completa para entrada nativa e WebMessageListener permanece necessária.
 - A mudança de host remoto exige confirmação nativa. A alteração de caminho dentro da mesma origem aprovada não pede nova confirmação.
+- A interface aguarda a conclusão da configuração/aprovação nativa antes de enviar a primeira solicitação, evitando uma corrida entre salvar o endpoint e iniciar a chamada.
 
 ## Armazenamento de artifacts de CI
 
