@@ -95,7 +95,7 @@ A especificação completa está em [docs/ESPECIFICACAO_MESTRA.md](docs/ESPECIFI
 
 1. **[JARVIS-APK](JARVIS-APK/README.md)** — Android, com prioridade para o Galaxy A06.
 2. **[JARVIS-EXE](JARVIS-EXE/README.md)** — Windows, incluindo agente visual e modo Hacker defensivo autorizado.
-3. **[JARVIS-COMPARTILHADO](JARVIS-COMPARTILHADO/README.md)** — backend, IA multi-provedor, memória, sincronização, autenticação e serviços comuns.
+3. **[JARVIS-COMPARTILHADO](JARVIS-COMPARTILHADO/README.md)** — serviços opcionais e integrações de IA. Memória e dados pessoais permanecem locais em cada dispositivo; não haverá sincronização de memória APK/EXE.
 
 O desenvolvimento será feito em etapas e nesta branch de trabalho, preservando a branch principal. A ordem acima define a sequência de entrega; contratos temporários permitirão que o APK seja desenvolvido antes da implementação completa dos serviços compartilhados. Recursos só serão marcados como prontos depois de compilação e testes verificáveis.
 
