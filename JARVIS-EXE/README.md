@@ -54,7 +54,7 @@ Os itens abaixo são metas de desenvolvimento, não recursos já concluídos:
 - Voz bidirecional contínua em português, ativação por comando, interrupção por voz e opção de repetir resposta.
 - Visão computacional: captura apenas sob comando, OCR local integrado ao chat e interpretação contextual da janela selecionada.
 - Controle assistido de mouse/teclado com plano visível, confirmação para ações sensíveis, pausa imediata e botão para o usuário assumir o controle.
-- Memória persistente criptografada, com revisão/controle pelo usuário; sincronização segura com o APK e perfis isolados.
+- Memória persistente local e protegida, com revisão e controle pelo usuário; sem sincronização com o APK.
 - Agentes especializados para pesquisa, programação, estudo, escrita, planejamento e análise.
 - JARVIS MONEY: cotações reais com fonte e horário, análise probabilística, backtesting e simulação; sem promessas de lucro nem ordens financeiras automáticas.
 - JARVIS DRIVE: localização consentida, mapas, trânsito, rotas e integração de navegação compatível; sem controle improvisado de direção, aceleração ou frenagem.
@@ -77,7 +77,7 @@ Abra a aba Actions do repositório, selecione Build JARVIS EXE e execute Run wor
 - OCR totalmente integrado ao chat e interpretação contextual de janelas.
 - Voz bidirecional contínua e interrupção por voz.
 - Agentes especializados de pesquisa, estudo, escrita, planejamento e análise.
-- Memória persistente criptografada, sincronização entre APK/EXE, múltiplos perfis realmente isolados e permissões por perfil.
+- Memória persistente local criptografada, controles de privacidade, múltiplos perfis realmente isolados e permissões por perfil.
 - Modo Hacker técnico completo para Red Team/Blue Team em ativos próprios/autorizados, com escopo, evidência mínima, laboratório, correção e reteste. A auditoria local atual é apenas estática e básica.
 - Atualizador com assinatura, backup, validação de integridade e rollback.
 - Testes de segurança, privacidade, desempenho e compatibilidade em Windows real.
@@ -100,7 +100,7 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - Os campos secretos abrem vazios; deixar um campo vazio preserva a credencial já salva.
 - Há testes de conexão individuais. Os testes fazem chamadas HTTPS e exibem apenas o resultado/código HTTP, sem imprimir a chave.
 - A chave Groq é usada pelo chat compatível com OpenAI. Gemini, Tavily e brapi ficam guardadas e podem ser testadas; a integração funcional desses provedores aos módulos ainda precisa ser feita separadamente.
-- As credenciais do Windows são independentes das do APK até a implementação de sincronização.
+- As credenciais do Windows são independentes das do APK; cada dispositivo mantém seu próprio cofre.
 
 ## APIs gratuitas — integração funcional no EXE
 - **Groq:** provedor principal do chat, usando o modelo configurado.
@@ -108,5 +108,5 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - **Tavily:** comandos "pesquise [assunto]" e perguntas como "qual o clima em [cidade]" consultam a web e exibem resposta e fontes quando a chave está salva. Sem Tavily, a pesquisa abre o Google no navegador interno.
 - **brapi:** JARVIS Money permite consultar cotações pelo código do ativo usando o token guardado. Valores são informativos, podem atrasar e não geram ordens.
 - **Cofre:** Configurações > Cofre de APIs. Windows Credential Manager via keyring. Campos vazios preservam credenciais; apagar credenciais remove Groq, Gemini, Tavily e brapi.
-- **Sem banco de dados em nuvem obrigatório:** configurações e lembretes ficam locais. APK e EXE mantêm cofres separados; sincronização automática exigirá serviço remoto opcional.
+- **Sem sincronização de memória ou credenciais:** configurações, lembretes e memória ficam locais. APK e EXE mantêm dados e cofres separados.
 - **Testes:** `python -m unittest discover -s JARVIS-EXE/tests -v`. Testes de API usam respostas simuladas; não validam disponibilidade externa nem substituem testes reais com as chaves do usuário.
