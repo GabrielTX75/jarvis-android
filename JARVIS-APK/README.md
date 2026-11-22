@@ -7,7 +7,7 @@ Construir a primeira versão utilizável do JARVIS para Android, priorizando o S
 - Conversa em português brasileiro por voz e texto, com interrupção, repetição da resposta, controle de velocidade/voz e estados reais (iniciando, pronto, ouvindo, transcrevendo, processando, falando, aguardando confirmação, online, offline e erro).
 - IA online por endpoint compatível com OpenAI; o APK agora sugere Groq (`https://api.groq.com/openai/v1/chat/completions`) e o modelo `openai/gpt-oss-120b` como configuração inicial. A chave é inserida pelo usuário e guardada no armazenamento criptografado do Android; não está embutida no APK. Fallback automático entre provedores ainda não foi implementado.
 - Modo local/offline para funções que realmente possam rodar no aparelho: notas, tarefas, cálculos, histórico local e, após avaliação de desempenho, modelo compacto opcional. O A06 não deve ser tratado como capaz de executar modelos grandes.
-- Memória e histórico sincronizados na nuvem; fila local de alterações enquanto offline e sincronização posterior, com resolução de conflitos e controles para visualizar/exportar/apagar dados.
+- Memória e histórico locais neste aparelho, com controles para visualizar, exportar e apagar dados. Não sincroniza com outros dispositivos.
 - Visão de tela sob comando explícito (“olhe minha tela”), usando APIs Android adequadas, OCR/acessibilidade e captura autorizada; indicador visível durante captura e botão de parar.
 - Ferramentas Android com permissões mínimas: abrir apps por allowlist, pesquisar, calendário/lembretes, arquivos escolhidos pelo usuário e compartilhamento.
 - Notas, tarefas, documentos, leitura/OCR de imagens, pesquisa com fontes, estudo, escrita, planejamento, análise e ajuda com código.
@@ -27,7 +27,7 @@ Construir a primeira versão utilizável do JARVIS para Android, priorizando o S
 ## Critérios de aceite
 1. Compilar APK debug e release reproduzivelmente em CI.
 2. Instalar e testar em aparelho Android real, incluindo Galaxy A06.
-3. Testar voz, interrupção, falhas de rede, modo offline, sincronização e restauração.
+3. Testar voz, interrupção, falhas de rede, modo offline e restauração local.
 4. Verificar permissões, privacidade, consumo de RAM/bateria e comportamento com tela apagada.
 5. Cada ferramenta deve reportar sucesso somente após confirmação do sistema/serviço.
 6. Documentar limitações reais; não exibir estados falsos nem alegar ações não realizadas.
@@ -50,4 +50,4 @@ Este diretório é a organização-alvo. A implementação existente ainda preci
 - Há testes de conexão individuais para Groq, Gemini, Tavily e brapi. Os testes consultam os endpoints oficiais e mostram apenas sucesso ou código HTTP/erro resumido.
 - O botão de apagar remove as quatro credenciais de API e a chave legada da IA; a opção de redefinir o cofre continua apagando também o PIN do cofre.
 - A chave Groq continua compatível com o campo de IA existente. As chaves Gemini, Tavily e brapi são armazenadas e testáveis; a integração funcional de cada serviço com os módulos de IA/pesquisa/finanças é uma etapa separada.
-- O cofre é local a este APK/aparelho. Não sincroniza com Windows até existir uma camada de sincronização segura.
+- O cofre e a memória são locais a este APK/aparelho. Não haverá sincronização automática com Windows ou outros dispositivos.
