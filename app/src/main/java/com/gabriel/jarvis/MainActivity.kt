@@ -22,9 +22,19 @@ import android.net.Uri
 import android.provider.Settings
 import android.os.Environment
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
+import java.net.URL
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -44,6 +54,15 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private var pendingPermissionStart = false
     private var listening = false
     private var lastUtteranceId = ""
+    private var aiConfigPromptOpen = false
+
+    private class AiRequest {
+        val cancelled = AtomicBoolean(false)
+        @Volatile var connection: HttpURLConnection? = null
+    }
+
+    private val aiExecutor = Executors.newFixedThreadPool(2)
+    private val aiRequests = ConcurrentHashMap<String, AiRequest>()
 
     companion object {
         private const val REQ_AUDIO = 4102
@@ -198,8 +217,15 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }
         }
         @JavascriptInterface fun getSecret(name: String): String {
-            if (name !in SECRET_NAMES) return ""
+            // A chave da IA é lida apenas pelo transporte nativo; nunca retorna ao JavaScript.
+            if (name !in SECRET_NAMES || name == "ai_key") return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
+        }
+        @JavascriptInterface fun requestAI(messagesJson: String, requestId: String) {
+            submitAiRequest(messagesJson, requestId)
+        }
+        @JavascriptInterface fun cancelAI(requestId: String) {
+            cancelAiRequest(requestId)
         }
         @JavascriptInterface fun allFilesAccessEnabled(): Boolean =
             Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()
@@ -243,12 +269,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }.start()
         }
         @JavascriptInterface fun salvarWpp(auto: Boolean, nome: String, endpoint: String, model: String) {
-            getSharedPreferences("jarvis_wpp", MODE_PRIVATE).edit()
-                .putBoolean("auto", auto)
-                .putString("nome", nome.take(60))
-                .putString("endpoint", endpoint.take(300))
-                .putString("model", model.take(120))
-                .apply()
+            runOnUiThread { configureWppAndAiEndpoint(auto, nome, endpoint, model) }
         }
         @JavascriptInterface fun picovoiceConfigurada(): Boolean = Cofre.ler(this@MainActivity, "picovoice_key").isNotEmpty()
         @JavascriptInterface fun ouvirSegundoPlanoAtivo(): Boolean = ouvirAtivo()
@@ -331,6 +352,259 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 }
             }
         }
+    }
+
+    private fun configureWppAndAiEndpoint(auto: Boolean, nome: String, endpoint: String, model: String) {
+        val prefs = getSharedPreferences("jarvis_wpp", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("auto", auto)
+            .putString("nome", nome.take(60))
+            .apply()
+
+        val currentEndpoint = prefs.getString("endpoint", "") ?: ""
+        val currentModel = prefs.getString("model", "") ?: ""
+        val candidate = endpoint.trim()
+        val cleanModel = model.trim()
+
+        fun notifyConfig(ok: Boolean, savedEndpoint: String, savedModel: String, message: String) {
+            js(
+                "jarvisNativeAiConfigResult",
+                "$ok, ${JSONObject.quote(savedEndpoint)}, ${JSONObject.quote(savedModel)}, ${JSONObject.quote(message)}"
+            )
+        }
+
+        if (candidate.isBlank() || candidate.length > 2048 || cleanModel.isBlank() ||
+            cleanModel.length > 120 || cleanModel.any { Character.isISOControl(it) }) {
+            notifyConfig(false, currentEndpoint, currentModel, "Endpoint ou modelo inválido.")
+            return
+        }
+
+        val uri = Uri.parse(candidate)
+        val scheme = uri.scheme?.lowercase(Locale.ROOT)
+        val host = uri.host?.lowercase(Locale.ROOT)
+        val local = host == "localhost" || host == "127.0.0.1"
+        val allowed = host != null && uri.userInfo == null && uri.fragment == null &&
+            (scheme == "https" || (scheme == "http" && local)) &&
+            try { URL(candidate); true } catch (_: Exception) { false }
+        if (!allowed) {
+            notifyConfig(false, currentEndpoint, currentModel, "Use HTTPS em servidores remotos ou HTTP somente em localhost/127.0.0.1.")
+            return
+        }
+
+        val port = if (uri.port != -1) uri.port else if (scheme == "https") 443 else 80
+        val origin = "$scheme://$host:$port"
+
+        fun saveConfig() {
+            prefs.edit()
+                .putString("endpoint", candidate)
+                .putString("model", cleanModel)
+                .apply()
+            notifyConfig(true, candidate, cleanModel, "Servidor de IA configurado.")
+        }
+
+        if (local) {
+            try { secretPrefs.edit().remove("ai_approved_origin").apply() } catch (_: Exception) {}
+            saveConfig()
+            return
+        }
+
+        val approvedOrigin = try {
+            secretPrefs.getString("ai_approved_origin", "") ?: ""
+        } catch (_: Exception) { "" }
+        if (approvedOrigin == origin) {
+            saveConfig()
+            return
+        }
+        if (aiConfigPromptOpen) return
+
+        aiConfigPromptOpen = true
+        try {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Autorizar servidor de IA")
+                .setMessage("O JARVIS enviará suas mensagens e a chave da IA para $host. Só autorize se você confia nesse servidor.")
+                .setPositiveButton("Autorizar") { _, _ ->
+                    aiConfigPromptOpen = false
+                    try { secretPrefs.edit().putString("ai_approved_origin", origin).commit() } catch (_: Exception) {}
+                    saveConfig()
+                }
+                .setNegativeButton("Cancelar") { _, _ ->
+                    aiConfigPromptOpen = false
+                    notifyConfig(false, currentEndpoint, currentModel, "Alteração do servidor cancelada.")
+                }
+                .setOnCancelListener {
+                    aiConfigPromptOpen = false
+                    notifyConfig(false, currentEndpoint, currentModel, "Alteração do servidor cancelada.")
+                }
+                .show()
+        } catch (_: Exception) {
+            aiConfigPromptOpen = false
+            notifyConfig(false, currentEndpoint, currentModel, "Não foi possível confirmar o servidor.")
+        }
+    }
+
+    private fun submitAiRequest(messagesJson: String, requestId: String) {
+        val id = requestId.take(80)
+        if (!Regex("[A-Za-z0-9_-]{1,80}").matches(id)) {
+            nativeAiResult(id, false, "", "Identificador de requisição inválido.")
+            return
+        }
+        if (messagesJson.length > 200_000) {
+            nativeAiResult(id, false, "", "A solicitação ultrapassou o limite permitido.")
+            return
+        }
+        if (aiRequests.size >= 4) {
+            nativeAiResult(id, false, "", "O JARVIS já está processando outras solicitações.")
+            return
+        }
+
+        val pending = AiRequest()
+        if (aiRequests.putIfAbsent(id, pending) != null) {
+            nativeAiResult(id, false, "", "Identificador de requisição repetido.")
+            return
+        }
+        try {
+            aiExecutor.execute { performAiRequest(id, pending, messagesJson) }
+        } catch (_: Exception) {
+            aiRequests.remove(id, pending)
+            nativeAiResult(id, false, "", "Não foi possível iniciar a solicitação à IA.")
+        }
+    }
+
+    private fun cancelAiRequest(requestId: String) {
+        val id = requestId.take(80)
+        aiRequests[id]?.let {
+            it.cancelled.set(true)
+            try { it.connection?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    private fun performAiRequest(id: String, pending: AiRequest, messagesJson: String) {
+        var connection: HttpURLConnection? = null
+        try {
+            if (pending.cancelled.get()) return
+            val prefs = getSharedPreferences("jarvis_wpp", MODE_PRIVATE)
+            val endpoint = prefs.getString("endpoint", "")?.trim().orEmpty()
+            val model = prefs.getString("model", "")?.trim().orEmpty()
+            if (endpoint.isBlank() || model.isBlank()) {
+                throw IllegalArgumentException("Configure o endereço e o modelo da IA.")
+            }
+
+            val uri = Uri.parse(endpoint)
+            val scheme = uri.scheme?.lowercase(Locale.ROOT)
+            val host = uri.host?.lowercase(Locale.ROOT)
+            val local = host == "localhost" || host == "127.0.0.1"
+            if (host == null || uri.userInfo != null || uri.fragment != null ||
+                !(scheme == "https" || (scheme == "http" && local))) {
+                throw IllegalArgumentException("O endereço da IA não passou pela validação de segurança.")
+            }
+            val port = if (uri.port != -1) uri.port else if (scheme == "https") 443 else 80
+            val origin = "$scheme://$host:$port"
+            if (!local) {
+                val approved = try { secretPrefs.getString("ai_approved_origin", "") ?: "" } catch (_: Exception) { "" }
+                if (approved != origin) {
+                    throw IllegalArgumentException("Confirme o servidor de IA nas configurações.")
+                }
+            }
+
+            val messages = JSONArray(messagesJson)
+            if (messages.length() !in 1..60) {
+                throw IllegalArgumentException("Quantidade de mensagens inválida.")
+            }
+            var totalChars = 0
+            for (index in 0 until messages.length()) {
+                val item = messages.optJSONObject(index)
+                    ?: throw IllegalArgumentException("Formato de mensagem inválido.")
+                if (item.optString("role") !in setOf("system", "user", "assistant")) {
+                    throw IllegalArgumentException("Papel de mensagem não permitido.")
+                }
+                val content = item.opt("content") as? String
+                    ?: throw IllegalArgumentException("O conteúdo das mensagens deve ser texto.")
+                totalChars += content.length
+                if (totalChars > 150_000) {
+                    throw IllegalArgumentException("O contexto ultrapassou o limite permitido.")
+                }
+            }
+
+            val body = JSONObject()
+                .put("model", model)
+                .put("messages", messages)
+                .put("stream", false)
+
+            connection = URL(endpoint).openConnection() as? HttpURLConnection
+                ?: throw IOException("Tipo de conexão não permitido.")
+            pending.connection = connection
+            if (pending.cancelled.get()) return
+
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 45_000
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.setRequestProperty("Accept", "application/json")
+            val apiKey = try { secretPrefs.getString("ai_key", "") ?: "" } catch (_: Exception) { "" }
+            if (apiKey.isNotBlank()) connection.setRequestProperty("Authorization", "Bearer $apiKey")
+
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (pending.cancelled.get()) return
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                if (status in 300..399) throw IOException("O servidor redirecionou a solicitação. Configure o endereço final.")
+                throw IOException("Servidor de IA respondeu HTTP $status.")
+            }
+
+            val responseText = connection.inputStream.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > 2_000_000) throw IOException("A resposta da IA ultrapassou o limite permitido.")
+                    output.write(buffer, 0, count)
+                }
+                output.toString("UTF-8")
+            }
+
+            val rawContent = JSONObject(responseText)
+                .optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.opt("content")
+            val answer = when (rawContent) {
+                is String -> rawContent
+                is JSONArray -> buildString {
+                    for (index in 0 until rawContent.length()) {
+                        when (val part = rawContent.opt(index)) {
+                            is String -> append(part)
+                            is JSONObject -> append(part.optString("text", ""))
+                        }
+                    }
+                }
+                else -> ""
+            }
+            if (answer.isBlank()) throw IOException("O modelo não retornou texto.")
+            if (!pending.cancelled.get()) nativeAiResult(id, true, answer, null)
+        } catch (_: SocketTimeoutException) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", "A IA demorou mais de 45 segundos para responder.")
+        } catch (e: IllegalArgumentException) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", e.message ?: "Configuração da IA inválida.")
+        } catch (_: Exception) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", "Não foi possível concluir a solicitação à IA.")
+        } finally {
+            try { connection?.disconnect() } catch (_: Exception) {}
+            pending.connection = null
+            aiRequests.remove(id, pending)
+        }
+    }
+
+    private fun nativeAiResult(id: String, ok: Boolean, text: String, error: String?) {
+        val errorArg = if (error == null) "null" else JSONObject.quote(error.take(240))
+        js(
+            "jarvisNativeAIResult",
+            "${JSONObject.quote(id)}, $ok, ${JSONObject.quote(text)}, $errorArg"
+        )
     }
 
     private fun actionResult(requestId: String, ok: Boolean, message: String) {
@@ -506,6 +780,11 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     override fun onDestroy() {
+        aiRequests.values.forEach {
+            it.cancelled.set(true)
+            try { it.connection?.disconnect() } catch (_: Exception) {}
+        }
+        aiExecutor.shutdownNow()
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
         if (::webView.isInitialized) { webView.removeJavascriptInterface("JarvisAndroid"); webView.destroy() }
