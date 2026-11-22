@@ -29,6 +29,9 @@ class LocalMemory:
             raise ValueError("Informe algo para lembrar.")
         if len(value) > self.max_chars:
             raise ValueError(f"A memória aceita até {self.max_chars} caracteres por item.")
+        import re
+        if re.search(r"(?i)\\b(api[_ -]?key|senha|password|token|secret|chave privada|private key)\\b", value):
+            raise ValueError("Não salve senhas, tokens ou chaves de API na memória do JARVIS.")
         items = self.list()
         if value.casefold() not in {x.casefold() for x in items}:
             items.append(value)
