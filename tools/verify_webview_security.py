@@ -71,6 +71,7 @@ assert "callbacksEnabled" in ACTIVITY
 assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
 assert "requestNativeAI(messages" in APP_JS, "Android deve usar o transporte nativo"
 assert "await syncWpp()" in APP_JS, "A chamada de IA deve aguardar a aprovação do endpoint"
+assert "nativeAiConfigPending=promise" in APP_JS, "A promessa de configuração deve existir antes da chamada nativa"
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
