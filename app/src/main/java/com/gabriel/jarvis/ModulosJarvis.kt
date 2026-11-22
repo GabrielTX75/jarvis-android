@@ -35,7 +35,7 @@ object ModulosJarvis {
         val written = mutableListOf<String>()
         for (i in 0 until files.length()) {
             val item = files.getJSONObject(i)
-            val relative = item.optString("path").replace('\\\\', '/')
+            val relative = item.optString("path").replace('\\', '/')
             require(relative.isNotBlank() && !relative.startsWith("/") &&
                 relative.split('/').none { it.isBlank() || it == "." || it == ".." }) {
                 "Caminho de arquivo inválido: $relative"
