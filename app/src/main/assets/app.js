@@ -10,10 +10,16 @@ function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 function segredosOk(){return !!(window.JarvisAndroid&&typeof window.JarvisAndroid.getSecret==="function")}
 function lerSegredo(n){try{return segredosOk()?String(window.JarvisAndroid.getSecret(n)||""):""}catch{return""}}
 function gravarSegredo(n,v){try{return segredosOk()?!!window.JarvisAndroid.setSecret(n,String(v||"")):false}catch{return false}}
-Object.assign(S,load("jv_set",{}));if(!["claude","local"].includes(S.provider))S.provider="claude";if(typeof S.endpoint!=="string")S.endpoint="http://localhost:11434/v1/chat/completions";if(typeof S.model!=="string")S.model="llama3.2";if(ANDROID&&S.provider==="claude")S.provider="local";S.apiKey=ANDROID?lerSegredo("ai_key"):"";S.serious=false;S.seriousSince=0;if(S.tier!=="default")S.tier="quick";if(typeof S.cont!=="boolean")S.cont=true;if(typeof S.listenAuto!=="boolean")S.listenAuto=true;S.hist=load("jv_hist",[]);if(!Array.isArray(S.hist))S.hist=[];S.hist=S.hist.filter(x=>x&&typeof x.t==="string"&&(x.r==="user"||x.r==="ai")).slice(-60);
-function saveSet(){save("jv_set",{serious:S.serious,seriousSince:S.seriousSince,seriousGoal:S.seriousGoal,provider:S.provider,endpoint:S.endpoint,model:S.model,mode:S.mode,cont:S.cont,listenAuto:S.listenAuto,auto:S.auto,rate:S.rate,pitch:S.pitch,barge:S.barge,gender:S.gender,voice:S.voice,tier:S.tier,wppAuto:S.wppAuto===true,wppNome:S.wppNome||""});if(ANDROID)syncWpp()}
+Object.assign(S,load("jv_set",{}));if(!["claude","local"].includes(S.provider))S.provider="claude";if(typeof S.endpoint!=="string")S.endpoint="http://localhost:11434/v1/chat/completions";if(typeof S.model!=="string")S.model="llama3.2";if(ANDROID&&S.provider==="claude")S.provider="local";S.apiKey="";S.serious=false;S.seriousSince=0;if(S.tier!=="default")S.tier="quick";if(typeof S.cont!=="boolean")S.cont=true;if(typeof S.listenAuto!=="boolean")S.listenAuto=true;S.hist=load("jv_hist",[]);if(!Array.isArray(S.hist))S.hist=[];S.hist=S.hist.filter(x=>x&&typeof x.t==="string"&&(x.r==="user"||x.r==="ai")).slice(-60);
+function saveSet(){save("jv_set",{serious:S.serious,seriousSince:S.seriousSince,seriousGoal:S.seriousGoal,provider:S.provider,endpoint:S.endpoint,model:S.model,mode:S.mode,cont:S.cont,listenAuto:S.listenAuto,auto:S.auto,rate:S.rate,pitch:S.pitch,barge:S.barge,gender:S.gender,voice:S.voice,tier:S.tier,wppAuto:S.wppAuto===true,wppNome:S.wppNome||""})}
 if(ANDROID&&S.provider==="local")saveSet();
 function syncWpp(){try{window.JarvisAndroid.salvarWpp(!!S.wppAuto,String(S.wppNome||""),String(S.endpoint||""),String(S.model||""))}catch{}}
+window.jarvisNativeAiConfigResult=(ok,endpoint,model,message)=>{
+ if(ok){$("#aiTestStatus").textContent=message||"Servidor de IA configurado.";return}
+ S.endpoint=String(endpoint||"");S.model=String(model||"");
+ $("#endpoint").value=S.endpoint;$("#model").value=S.model;saveSet();
+ $("#aiTestStatus").textContent=message||"Configuração do servidor não alterada.";
+};
 if(ANDROID)syncWpp();
 function ptVoices(){if(!("speechSynthesis" in window))return[];const a=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)),b=/^pt[-_]?br/i;return a.filter(v=>b.test(v.lang)).concat(a.filter(v=>!b.test(v.lang)))}
 function pick(){if(!("speechSynthesis" in window))return null;const vs=ptVoices();return vs.find(v=>v.name===S.voice)||vs.find(v=>(S.gender==="f"?/maria|luciana|francisca|fernanda|vit[oó]ria|\bfemale\b|feminin|afs/i:/daniel|ricardo|felipe|antonio|antônio|jorge|luciano|\bmale\b|masculin|ptd/i).test(v.name))||null}
@@ -198,6 +204,26 @@ $("#exportTxt").onclick=()=>exportHistory("txt");
 $("#exportJson").onclick=()=>exportHistory("json");
 async function getSample(){try{return window.claude&&claude.use?await claude.use("sample"):null}catch{return null}}
 function providerError(message){const e=new Error(message);e.code="provider_error";return e}
+let nativeAiSeq=0;
+const nativeAiPending=new Map();
+window.jarvisNativeAIResult=(id,ok,text,error)=>{
+ const pending=nativeAiPending.get(String(id));if(!pending)return;
+ nativeAiPending.delete(String(id));
+ if(pending.signal)pending.signal.removeEventListener("abort",pending.abort);
+ if(ok){try{if(pending.onText)pending.onText({text})}catch{}pending.resolve(String(text||""))}
+ else pending.reject(providerError(String(error||"Não foi possível consultar a IA.")));
+};
+function requestNativeAI(messages,{signal,onText}={}){
+ return new Promise((resolve,reject)=>{
+  if(signal?.aborted){const e=new Error("Requisição cancelada.");e.name="AbortError";reject(e);return}
+  const id="ai-"+(++nativeAiSeq)+"-"+Date.now();
+  const abort=()=>{if(!nativeAiPending.has(id))return;nativeAiPending.delete(id);try{window.JarvisAndroid.cancelAI(id)}catch{}const e=new Error("Requisição cancelada.");e.name="AbortError";reject(e)};
+  nativeAiPending.set(id,{resolve,reject,onText,signal,abort});
+  if(signal)signal.addEventListener("abort",abort,{once:true});
+  try{window.JarvisAndroid.requestAI(JSON.stringify(messages),id)}
+  catch(e){nativeAiPending.delete(id);if(signal)signal.removeEventListener("abort",abort);reject(providerError("Não foi possível iniciar a comunicação nativa com a IA."))}
+ });
+}
 async function requestAI(messages,{signal,onText,modelTier}={}){
  if(S.provider==="claude"){
   const sample=await getSample();if(!sample)throw{code:"unavailable"};
@@ -206,6 +232,7 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
  }
  const endpoint=(S.endpoint||"").trim(),model=(S.model||"").trim();
  if(!endpoint||!model)throw providerError("Configure o endereço e o nome do modelo nas configurações.");
+ if(ANDROID&&typeof window.JarvisAndroid.requestAI==="function")return requestNativeAI(messages,{signal,onText});
  const requestController=new AbortController();let timedOut=false;const timeout=setTimeout(()=>{timedOut=true;requestController.abort()},45000);
  const relayAbort=()=>requestController.abort();if(signal){if(signal.aborted)relayAbort();else signal.addEventListener("abort",relayAbort,{once:true})}
  try{
@@ -224,8 +251,8 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
 async function testAIConnection(){
  const status=$("#aiTestStatus"),button=$("#testAI");
  if(S.provider!=="local"){status.textContent="Selecione servidor compatível";return}
- S.endpoint=$("#endpoint").value.trim();S.model=$("#model").value.trim();S.apiKey=$("#apikey").value;
- saveSet();
+ S.endpoint=$("#endpoint").value.trim();S.model=$("#model").value.trim();if(!ANDROID)S.apiKey=$("#apikey").value;else S.apiKey="";
+ saveSet();syncWpp();
  if(!S.endpoint||!S.model){status.textContent="Informe endpoint e modelo";return}
  let u;try{u=new URL(S.endpoint)}catch{status.textContent="URL inválida";return}
  if(u.protocol!=="https:"&&!(u.protocol==="http:"&&(u.hostname==="localhost"||u.hostname==="127.0.0.1"))){status.textContent="Use HTTPS (HTTP só no localhost)";return}
@@ -438,7 +465,7 @@ function net(){const o=navigator.onLine,n=$("#net");n.textContent=o?"ONLINE":"OF
 addEventListener("online",net);addEventListener("offline",net);net();
 function voices(){if(!("speechSynthesis" in window))return;const s=$("#voice");const v=ptVoices();s.innerHTML='<option value="">Automática (masculina, se houver)</option>';v.forEach(x=>{const o=document.createElement("option");o.value=x.name;o.textContent=x.name;s.appendChild(o)});s.value=S.voice}
 if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=voices;voices()}
-renderSerious();$("#provider").value=S.provider;$("#endpoint").value=S.endpoint;$("#model").value=S.model;$("#apikey").value="";if(ANDROID){$("#apikey").parentElement.firstChild.textContent="Chave da API (salva criptografada neste aparelho) ";$("#apikey").placeholder="Fica salva neste aparelho"}$("#provider").onchange=e=>{S.provider=e.target.value;if(S.provider==="claude"){S.apiKey="";$("#apikey").value=""}saveSet();$("#crs").textContent=S.provider==="claude"?"Claude Artifact selecionado":"Criador salvo localmente"};$("#endpoint").onchange=e=>{S.endpoint=e.target.value.trim();saveSet();$("#aiTestStatus").textContent="Configuração alterada"};$("#model").onchange=e=>{S.model=e.target.value.trim();saveSet();$("#aiTestStatus").textContent="Configuração alterada"};$("#apikey").onchange=e=>{S.apiKey=e.target.value;if(ANDROID){const ok=gravarSegredo("ai_key",S.apiKey);$("#aiTestStatus").textContent=ok?(S.apiKey?"Chave salva neste aparelho":"Chave apagada deste aparelho"):"Não consegui salvar a chave com segurança neste aparelho";$("#vmsg").textContent="A chave fica criptografada neste aparelho. Não compartilhe o APK nem o aparelho desbloqueado."}else{$("#aiTestStatus").textContent="Chave carregada nesta sessão";$("#vmsg").textContent="A chave fica apenas nesta sessão e é enviada ao endpoint configurado. Para uso público, use um backend HTTPS; não compartilhe o APK com uma chave embutida."}};if(ANDROID){const wa=$("#wppAuto");wa.checked=S.wppAuto===true;wa.onchange=e=>{S.wppAuto=e.target.checked;saveSet();refreshWpp()};const wn=$("#wppNome");wn.value=S.wppNome||"";wn.onchange=e=>{S.wppNome=e.target.value.trim();saveSet()};$("#wppAccess").onclick=()=>{try{window.JarvisAndroid.openNotificationAccess()}catch{}};$("#wppArquivos").onclick=()=>{try{window.JarvisAndroid.openAllFilesAccess()}catch{}};refreshWpp()}else{$("#wppBox").style.display="none"}
+renderSerious();$("#provider").value=S.provider;$("#endpoint").value=S.endpoint;$("#model").value=S.model;$("#apikey").value="";if(ANDROID){$("#apikey").parentElement.firstChild.textContent="Chave da API (salva criptografada neste aparelho) ";$("#apikey").placeholder="Fica salva neste aparelho"}$("#provider").onchange=e=>{S.provider=e.target.value;if(S.provider==="claude"){S.apiKey="";$("#apikey").value=""}saveSet();$("#crs").textContent=S.provider==="claude"?"Claude Artifact selecionado":"Criador salvo localmente"};$("#endpoint").onchange=e=>{S.endpoint=e.target.value.trim();saveSet();syncWpp();$("#aiTestStatus").textContent="Configuração alterada"};$("#model").onchange=e=>{S.model=e.target.value.trim();saveSet();syncWpp();$("#aiTestStatus").textContent="Configuração alterada"};$("#apikey").onchange=e=>{const entered=e.target.value;if(ANDROID){const ok=gravarSegredo("ai_key",entered);S.apiKey="";e.target.value="";$("#aiTestStatus").textContent=ok?(entered?"Chave salva neste aparelho":"Chave apagada deste aparelho"):"Não consegui salvar a chave com segurança neste aparelho";$("#vmsg").textContent="A chave fica criptografada neste aparelho e é usada pelo transporte nativo. Não compartilhe o APK nem o aparelho desbloqueado."}else{S.apiKey=entered;$("#aiTestStatus").textContent="Chave carregada nesta sessão";$("#vmsg").textContent="A chave fica apenas nesta sessão e é enviada ao endpoint configurado. Para uso público, use um backend HTTPS; não compartilhe o APK com uma chave embutida."}};if(ANDROID){const wa=$("#wppAuto");wa.checked=S.wppAuto===true;wa.onchange=e=>{S.wppAuto=e.target.checked;saveSet();syncWpp();refreshWpp()};const wn=$("#wppNome");wn.value=S.wppNome||"";wn.onchange=e=>{S.wppNome=e.target.value.trim();saveSet();syncWpp()};$("#wppAccess").onclick=()=>{try{window.JarvisAndroid.openNotificationAccess()}catch{}};$("#wppArquivos").onclick=()=>{try{window.JarvisAndroid.openAllFilesAccess()}catch{}};refreshWpp()}else{$("#wppBox").style.display="none"}
 if(ANDROID){const pa=$("#pvAtivo");try{pa.checked=!!window.JarvisAndroid.ouvirSegundoPlanoAtivo()}catch{}pa.onchange=e=>{let ok=false;try{ok=!!window.JarvisAndroid.setOuvirSegundoPlano(e.target.checked)}catch{}if(!ok&&e.target.checked){e.target.checked=false}refreshPv()};$("#pvOverlay").onclick=()=>{try{window.JarvisAndroid.abrirPermissaoOverlay()}catch{}};$("#pvAcess").onclick=()=>{try{window.JarvisAndroid.abrirAcessibilidade()}catch{}};$("#verNovidades").onclick=mostrarNovidades;$("#verCodigos").onclick=mostrarCodigos;refreshPv()}
 $("#tier").value=S.tier;$("#tier").onchange=e=>{S.tier=e.target.value;saveSet()};$("#cont").checked=S.cont;$("#al").checked=S.listenAuto;$("#auto").checked=S.auto;$("#rate").value=S.rate;$("#pitch").value=S.pitch;$("#barge").checked=S.barge;setGender(S.gender,false);
 function setMode(m,u){S.mode=m;document.body.classList.toggle("fala",m==="fala");$("#mf").classList.toggle("on",m==="fala");$("#me").classList.toggle("on",m!=="fala");if(m==="fala"){S.auto=true;S.cont=true;$("#auto").checked=true;$("#cont").checked=true;if(u&&$("#lock").style.display!=="flex")start()}saveSet()}
