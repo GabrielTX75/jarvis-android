@@ -21,9 +21,11 @@ from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus, quote
 from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, tavily_search
+from agents import names as agent_names, system_instruction as agent_instruction
+from memory_store import LocalMemory
 
 import keyring
-from desktop_tools import capture_screen
+from desktop_tools import capture_screen, read_screen_text
 from project_workspace import create_project, write_project_file
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
@@ -88,6 +90,8 @@ class JarvisApp:
         APP_DIR.mkdir(parents=True, exist_ok=True)
         self.config = self.load_config()
         self.reminders = ReminderManager(APP_DIR / "reminders.json")
+        self.memory = LocalMemory(APP_DIR / "memory.json")
+        self.agent_var = tk.StringVar(value="Geral")
         self.command_router = CommandRouter()
         self.command_router.register("reminders", self.try_reminder_command, priority=10)
         self.command_router.register("browser", self.try_browser_command, priority=20)
@@ -239,8 +243,16 @@ class JarvisApp:
         chat_panel.grid(row=1, column=0, sticky="nsew")
         chat_panel.grid_rowconfigure(1, weight=1)
         chat_panel.grid_columnconfigure(0, weight=1)
-        tk.Label(chat_panel, text="CONVERSA COM O JARVIS", bg=PANEL, fg=CYAN,
-                 font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        chat_header = tk.Frame(chat_panel, bg=PANEL)
+        chat_header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        chat_header.grid_columnconfigure(0, weight=1)
+        tk.Label(chat_header, text="CONVERSA COM O JARVIS", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+        tk.Label(chat_header, text="AGENTE", bg=PANEL, fg=MUTED,
+                 font=("Segoe UI", 8, "bold")).grid(row=0, column=1, padx=(8, 4))
+        self.agent_picker = ttk.Combobox(chat_header, textvariable=self.agent_var,
+                                         values=agent_names(), state="readonly", width=14)
+        self.agent_picker.grid(row=0, column=2, sticky="e")
         self.chat = tk.Text(chat_panel, bg="#041321", fg=TEXT, insertbackground=TEXT,
                             wrap="word", font=("Segoe UI", 9), relief="flat",
                             padx=12, pady=10, state="disabled", height=8)
@@ -305,7 +317,8 @@ class JarvisApp:
             ("📁  Abrir projetos", self.open_projects_folder),
             ("⌖  Planejar rota", self.drive),
             ("⏰  Meus lembretes", self.open_reminders),
-            ("▧  Capturar tela", self.screen_capture)
+            ("▧  Capturar tela", self.screen_capture),
+            ("▤  Memória local", self.manage_memory)
         ]:
             self.button(quick_tools, label, action, compact=True).pack(fill="x", pady=2)
 
@@ -407,6 +420,8 @@ class JarvisApp:
             return
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
+        if self.try_memory_command(prompt):
+            return
         if self.command_router.dispatch(prompt):
             return
         self.history.append({"role": "user", "content": prompt})
@@ -417,6 +432,15 @@ class JarvisApp:
 
     def ask(self):
         try:
+            request_history = [dict(item) for item in self.history]
+            context = self.memory.prompt_context()
+            system_text = SYSTEM + "\\n\\n" + agent_instruction(self.agent_var.get())
+            if context:
+                system_text += "\\n\\n" + context
+            if request_history and request_history[0].get("role") == "system":
+                request_history[0]["content"] = system_text
+            else:
+                request_history.insert(0, {"role": "system", "content": system_text})
             groq_key = keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or ""
             gemini_key = keyring.get_password("JARVIS", "gemini_key") or ""
             answer = None
@@ -424,14 +448,14 @@ class JarvisApp:
             errors = []
             if groq_key:
                 try:
-                    answer = groq_chat(groq_key, self.config["model"], self.history,
+                    answer = groq_chat(groq_key, self.config["model"], request_history,
                                         endpoint=self.config["endpoint"])
                     provider = "Groq"
                 except Exception as exc:
                     errors.append("Groq: " + str(exc))
             if answer is None and gemini_key:
                 try:
-                    answer = gemini_chat(gemini_key, self.history)
+                    answer = gemini_chat(gemini_key, request_history)
                     provider = "Gemini (reserva)"
                 except Exception as exc:
                     errors.append("Gemini: " + str(exc))
@@ -725,6 +749,8 @@ class JarvisApp:
             ("Criar projeto", self.new_project),
             ("Auditar pasta local", self.audit_local),
             ("Capturar tela", self.screen_capture),
+            ("Capturar e ler texto (OCR)", self.capture_and_ocr),
+            ("Memória local", self.manage_memory),
             ("Abrir pasta de projetos", self.open_projects_folder)
         ]
         for label, action in actions:
@@ -949,6 +975,87 @@ class JarvisApp:
             self.add("VISÃO", f"Captura salva em {destination}.")
         except Exception as exc:
             messagebox.showerror("Captura", str(exc))
+
+
+    def try_memory_command(self, prompt):
+        text = prompt.strip()
+        remember = re.match(r"^(?:jarvis[, ]*)?(?:lembre(?:-se)?(?: de)?|guarde(?: que)?|memorize(?: que)?)\\s+(.+)$", text, re.I)
+        if remember:
+            fact = remember.group(1).strip().rstrip(".!?")
+            try:
+                saved = self.memory.remember(fact)
+                self.add("MEMÓRIA LOCAL", "Lembrei: " + saved)
+            except Exception as exc:
+                self.add("MEMÓRIA LOCAL", str(exc), True)
+            return True
+        if re.search(r"\\b(o que você lembra|o que voce lembra|minhas memórias|minhas memorias|listar memórias|listar memorias)\\b", text, re.I):
+            items = self.memory.list()
+            if not items:
+                self.add("MEMÓRIA LOCAL", "Ainda não há fatos salvos.")
+            else:
+                self.add("MEMÓRIA LOCAL", "\\n".join(f"{i}. {item}" for i, item in enumerate(items, 1)))
+            return True
+        if re.search(r"\\b(esqueça tudo|esqueca tudo|apague minhas memórias|apague minhas memorias|limpe a memória|limpe a memoria)\\b", text, re.I):
+            if messagebox.askyesno("Apagar memória local", "Apagar todos os fatos salvos neste computador?"):
+                count = self.memory.forget()
+                self.add("MEMÓRIA LOCAL", f"{count} fato(s) apagado(s).")
+            else:
+                self.add("MEMÓRIA LOCAL", "Nenhuma memória foi apagada.")
+            return True
+        return False
+
+    def manage_memory(self):
+        win = tk.Toplevel(self.root)
+        win.title("Memória local — JARVIS")
+        win.configure(bg=PANEL)
+        win.geometry("640x520")
+        tk.Label(win, text="FATOS SALVOS NESTE COMPUTADOR", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=14, pady=12)
+        listing = tk.Listbox(win, bg="#041321", fg=TEXT, selectbackground="#075d85",
+                             relief="flat", font=("Segoe UI", 10), height=15)
+        listing.pack(fill="both", expand=True, padx=14, pady=6)
+        def refresh():
+            listing.delete(0, "end")
+            for item in self.memory.list():
+                listing.insert("end", item)
+        def remove_selected():
+            selected = listing.curselection()
+            if not selected:
+                messagebox.showinfo("Memória", "Selecione um fato para apagar.", parent=win)
+                return
+            self.memory.forget(selected[0] + 1)
+            refresh()
+        def clear_all():
+            if messagebox.askyesno("Apagar memória", "Apagar todos os fatos locais?", parent=win):
+                self.memory.forget()
+                refresh()
+        actions = tk.Frame(win, bg=PANEL)
+        actions.pack(fill="x", padx=14, pady=10)
+        self.button(actions, "APAGAR SELECIONADO", remove_selected, compact=True).pack(side="left", padx=3)
+        self.button(actions, "APAGAR TUDO", clear_all, compact=True).pack(side="left", padx=3)
+        tk.Label(win, text="A memória é local, não sincroniza e só guarda fatos pedidos explicitamente.",
+                 bg=PANEL, fg=MUTED, wraplength=580, justify="left").pack(anchor="w", padx=14, pady=(0, 12))
+        refresh()
+
+    def capture_and_ocr(self):
+        if not messagebox.askyesno("Visão e OCR", "Autoriza capturar a tela atual e extrair texto localmente?"):
+            return
+        source = filedialog.asksaveasfilename(
+            title="Salvar captura para OCR", defaultextension=".png",
+            filetypes=[("Imagem PNG", "*.png")])
+        if not source:
+            return
+        try:
+            capture_screen(source)
+            extracted = read_screen_text(source).strip()
+            if not extracted:
+                self.add("VISÃO / OCR", "A captura foi feita, mas nenhum texto legível foi encontrado.")
+                return
+            self.add("VISÃO / OCR", extracted[:6000])
+            self.history.append({"role": "user", "content": "Texto extraído da captura de tela autorizada (OCR local):\\n" + extracted[:6000]})
+            self.agent_var.set("Visão")
+        except Exception as exc:
+            messagebox.showerror("Visão / OCR", str(exc))
 
     def close(self):
         self.root.destroy()
