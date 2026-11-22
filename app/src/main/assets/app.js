@@ -13,12 +13,26 @@ function gravarSegredo(n,v){try{return segredosOk()?!!window.JarvisAndroid.setSe
 Object.assign(S,load("jv_set",{}));if(!["claude","local"].includes(S.provider))S.provider="claude";if(typeof S.endpoint!=="string")S.endpoint="http://localhost:11434/v1/chat/completions";if(typeof S.model!=="string")S.model="llama3.2";if(ANDROID&&S.provider==="claude")S.provider="local";S.apiKey="";S.serious=false;S.seriousSince=0;if(S.tier!=="default")S.tier="quick";if(typeof S.cont!=="boolean")S.cont=true;if(typeof S.listenAuto!=="boolean")S.listenAuto=true;S.hist=load("jv_hist",[]);if(!Array.isArray(S.hist))S.hist=[];S.hist=S.hist.filter(x=>x&&typeof x.t==="string"&&(x.r==="user"||x.r==="ai")).slice(-60);
 function saveSet(){save("jv_set",{serious:S.serious,seriousSince:S.seriousSince,seriousGoal:S.seriousGoal,provider:S.provider,endpoint:S.endpoint,model:S.model,mode:S.mode,cont:S.cont,listenAuto:S.listenAuto,auto:S.auto,rate:S.rate,pitch:S.pitch,barge:S.barge,gender:S.gender,voice:S.voice,tier:S.tier,wppAuto:S.wppAuto===true,wppNome:S.wppNome||""})}
 if(ANDROID&&S.provider==="local")saveSet();
-function syncWpp(){try{window.JarvisAndroid.salvarWpp(!!S.wppAuto,String(S.wppNome||""),String(S.endpoint||""),String(S.model||""))}catch{}}
+let nativeAiConfigPending=null,nativeAiConfigResolve=null;
+function syncWpp(){
+ if(!ANDROID)return Promise.resolve(true);
+ if(nativeAiConfigPending)return nativeAiConfigPending;
+ nativeAiConfigPending=new Promise(resolve=>{
+  nativeAiConfigResolve=resolve;
+  try{window.JarvisAndroid.salvarWpp(!!S.wppAuto,String(S.wppNome||""),String(S.endpoint||""),String(S.model||""))}
+  catch{nativeAiConfigPending=null;nativeAiConfigResolve=null;resolve(false)}
+ });
+ return nativeAiConfigPending;
+}
 window.jarvisNativeAiConfigResult=(ok,endpoint,model,message)=>{
- if(ok){$("#aiTestStatus").textContent=message||"Servidor de IA configurado.";return}
- S.endpoint=String(endpoint||"");S.model=String(model||"");
- $("#endpoint").value=S.endpoint;$("#model").value=S.model;saveSet();
- $("#aiTestStatus").textContent=message||"Configuração do servidor não alterada.";
+ if(!ok){
+  S.endpoint=String(endpoint||"");S.model=String(model||"");
+  $("#endpoint").value=S.endpoint;$("#model").value=S.model;saveSet();
+ }
+ $("#aiTestStatus").textContent=message||(ok?"Servidor de IA configurado.":"Configuração do servidor não alterada.");
+ const resolve=nativeAiConfigResolve;
+ nativeAiConfigResolve=null;nativeAiConfigPending=null;
+ if(resolve)resolve(!!ok);
 };
 if(ANDROID)syncWpp();
 function ptVoices(){if(!("speechSynthesis" in window))return[];const a=speechSynthesis.getVoices().filter(v=>/^pt/i.test(v.lang)),b=/^pt[-_]?br/i;return a.filter(v=>b.test(v.lang)).concat(a.filter(v=>!b.test(v.lang)))}
@@ -232,7 +246,11 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
  }
  const endpoint=(S.endpoint||"").trim(),model=(S.model||"").trim();
  if(!endpoint||!model)throw providerError("Configure o endereço e o nome do modelo nas configurações.");
- if(ANDROID&&typeof window.JarvisAndroid.requestAI==="function")return requestNativeAI(messages,{signal,onText});
+ if(ANDROID&&typeof window.JarvisAndroid.requestAI==="function"){
+  const ready=await syncWpp();
+  if(!ready)throw providerError("A configuração do servidor de IA não foi autorizada.");
+  return requestNativeAI(messages,{signal,onText});
+ }
  const requestController=new AbortController();let timedOut=false;const timeout=setTimeout(()=>{timedOut=true;requestController.abort()},45000);
  const relayAbort=()=>requestController.abort();if(signal){if(signal.aborted)relayAbort();else signal.addEventListener("abort",relayAbort,{once:true})}
  try{
