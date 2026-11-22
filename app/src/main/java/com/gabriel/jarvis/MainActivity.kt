@@ -55,6 +55,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private var listening = false
     private var lastUtteranceId = ""
     private var aiConfigPromptOpen = false
+    @Volatile private var callbacksEnabled = true
 
     private class AiRequest {
         val cancelled = AtomicBoolean(false)
@@ -424,8 +425,9 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 .setMessage("O JARVIS enviará suas mensagens e a chave da IA para $host. Só autorize se você confia nesse servidor.")
                 .setPositiveButton("Autorizar") { _, _ ->
                     aiConfigPromptOpen = false
-                    try { secretPrefs.edit().putString("ai_approved_origin", origin).commit() } catch (_: Exception) {}
-                    saveConfig()
+                    val saved = try { secretPrefs.edit().putString("ai_approved_origin", origin).commit() } catch (_: Exception) { false }
+                    if (saved) saveConfig()
+                    else notifyConfig(false, currentEndpoint, currentModel, "Não foi possível salvar a autorização do servidor.")
                 }
                 .setNegativeButton("Cancelar") { _, _ ->
                     aiConfigPromptOpen = false
@@ -607,6 +609,15 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         )
     }
 
+    private fun cancelAllAiRequests(reason: String?) {
+        val pendingRequests = aiRequests.entries.toList()
+        for ((id, request) in pendingRequests) {
+            request.cancelled.set(true)
+            try { request.connection?.disconnect() } catch (_: Exception) {}
+            if (reason != null) nativeAiResult(id, false, "", reason)
+        }
+    }
+
     private fun actionResult(requestId: String, ok: Boolean, message: String) {
         val id = org.json.JSONObject.quote(requestId.take(80))
         val msg = org.json.JSONObject.quote(message.take(240))
@@ -614,8 +625,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     private fun js(name: String, args: String) {
-        if (!::webView.isInitialized) return
-        runOnUiThread { webView.evaluateJavascript("window.$name($args)", null) }
+        if (!callbacksEnabled || !::webView.isInitialized) return
+        runOnUiThread {
+            if (callbacksEnabled) {
+                try { webView.evaluateJavascript("window.$name($args)", null) } catch (_: Exception) {}
+            }
+        }
     }
 
     private fun beginListening() {
@@ -765,7 +780,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         JarvisOuvidoService.telaAtiva(true)
         if (pendingWake && ::webView.isInitialized) { pendingWake = false; js("jarvisWake", "") }
     }
-    override fun onPause() { stopRecognition(); JarvisOuvidoService.telaAtiva(false); super.onPause() }
+    override fun onPause() {
+        cancelAllAiRequests("Consulta interrompida porque o JARVIS foi para segundo plano.")
+        stopRecognition()
+        JarvisOuvidoService.telaAtiva(false)
+        super.onPause()
+    }
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         if (intent?.getBooleanExtra("wake", false) == true && ::webView.isInitialized) js("jarvisWake", "")
@@ -780,10 +800,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     override fun onDestroy() {
-        aiRequests.values.forEach {
-            it.cancelled.set(true)
-            try { it.connection?.disconnect() } catch (_: Exception) {}
-        }
+        callbacksEnabled = false
+        cancelAllAiRequests(null)
         aiExecutor.shutdownNow()
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
