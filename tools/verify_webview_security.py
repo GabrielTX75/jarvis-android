@@ -68,6 +68,7 @@ assert "connection.instanceFollowRedirects = false" in ACTIVITY
 assert "ai_approved_origin" in ACTIVITY, "O servidor remoto precisa de aprovação nativa"
 assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
 assert "requestNativeAI(messages" in APP_JS, "Android deve usar o transporte nativo"
+assert "await syncWpp()" in APP_JS, "A chamada de IA deve aguardar a aprovação do endpoint"
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
