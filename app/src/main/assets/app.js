@@ -17,12 +17,13 @@ let nativeAiConfigPending=null,nativeAiConfigResolve=null;
 function syncWpp(){
  if(!ANDROID)return Promise.resolve(true);
  if(nativeAiConfigPending)return nativeAiConfigPending;
- nativeAiConfigPending=new Promise(resolve=>{
-  nativeAiConfigResolve=resolve;
-  try{window.JarvisAndroid.salvarWpp(!!S.wppAuto,String(S.wppNome||""),String(S.endpoint||""),String(S.model||""))}
-  catch{nativeAiConfigPending=null;nativeAiConfigResolve=null;resolve(false)}
- });
- return nativeAiConfigPending;
+ let resolveConfig;
+ const promise=new Promise(resolve=>{resolveConfig=resolve});
+ nativeAiConfigPending=promise;
+ nativeAiConfigResolve=resolveConfig;
+ try{window.JarvisAndroid.salvarWpp(!!S.wppAuto,String(S.wppNome||""),String(S.endpoint||""),String(S.model||""))}
+ catch{nativeAiConfigPending=null;nativeAiConfigResolve=null;resolveConfig(false)}
+ return promise;
 }
 window.jarvisNativeAiConfigResult=(ok,endpoint,model,message)=>{
  if(!ok){
