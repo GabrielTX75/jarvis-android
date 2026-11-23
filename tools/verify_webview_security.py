@@ -4,6 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVITY = (ROOT / "app/src/main/java/com/gabriel/jarvis/MainActivity.kt").read_text(encoding="utf-8")
+AI_POLICY = (ROOT / "app/src/main/java/com/gabriel/jarvis/AiEndpointPolicy.kt").read_text(encoding="utf-8")
+AI_POLICY_TEST = (ROOT / "app/src/test/java/com/gabriel/jarvis/AiEndpointPolicyTest.kt").read_text(encoding="utf-8")
 HTML = (ROOT / "app/src/main/assets/index.html").read_text(encoding="utf-8")
 MANIFEST = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 NETWORK = (ROOT / "app/src/main/res/xml/network_security_config.xml").read_text(encoding="utf-8")
@@ -67,8 +69,14 @@ assert "@JavascriptInterface fun cancelAI(requestId: String)" in ACTIVITY
 assert "connection.instanceFollowRedirects = false" in ACTIVITY
 assert "ai_approved_endpoint" in ACTIVITY, "O endpoint completo precisa de aprovação nativa"
 assert 'getString("ai_approved_origin"' not in ACTIVITY, "A aprovação antiga apenas por origem não pode continuar autorizando chamadas"
-assert "parsed.rawQuery != null" in ACTIVITY, "Query strings devem ser recusadas para impedir credenciais na URL"
-assert "parsed.rawFragment != null" in ACTIVITY, "Fragmentos devem ser recusados na URL do endpoint"
+assert "parsed.rawQuery != null" in AI_POLICY, "Query strings devem ser recusadas para impedir credenciais na URL"
+assert "parsed.rawFragment != null" in AI_POLICY, "Fragmentos devem ser recusados na URL do endpoint"
+assert "parsed.rawUserInfo != null" in AI_POLICY, "Credenciais embutidas na URL devem ser recusadas"
+assert "AiEndpointPolicy.validate(candidate)" in ACTIVITY
+assert "AiEndpointPolicy.validate(endpoint)" in ACTIVITY
+assert "normalizesHttpsHostAndDefaultPort" in AI_POLICY_TEST
+assert "allowsHttpOnlyForLoopbackNames" in AI_POLICY_TEST
+assert "rejectsCredentialsQueryAndFragment" in AI_POLICY_TEST
 assert "approved != validatedEndpoint.normalized" in ACTIVITY, "A chamada deve conferir a URL completa aprovada"
 assert "endpoint completo" in ACTIVITY, "O diálogo deve deixar claro que a aprovação cobre a URL completa"
 assert "cancelAllAiRequests(\"Consulta interrompida" in ACTIVITY
