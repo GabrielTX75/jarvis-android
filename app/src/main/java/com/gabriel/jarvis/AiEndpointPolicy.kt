@@ -33,11 +33,11 @@ internal object AiEndpointPolicy {
         if (!path.startsWith("/")) return null
         val authorityHost = if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
         val defaultPort = if (scheme == "https") 443 else 80
-        val portSuffix = if (parsed.port == -1 || parsed.port == defaultPort) "" else ":\u0024{parsed.port}"
-        val normalized = "\u0024scheme://\u0024authorityHost\u0024portSuffix\u0024path"
+        val portSuffix = if (parsed.port == -1 || parsed.port == defaultPort) "" else ":${parsed.port}"
+        val normalized = "${scheme}://${authorityHost}${portSuffix}${path}"
         if (normalized.length > 2048) return null
         try { URL(normalized) } catch (_: Exception) { return null }
 
-        return ValidatedAiEndpoint(normalized, local, "\u0024authorityHost\u0024portSuffix\u0024path")
+        return ValidatedAiEndpoint(normalized, local, "${authorityHost}${portSuffix}${path}")
     }
 }
