@@ -40,6 +40,9 @@ jobs:
         with:
           gradle-version: "8.10"
 
+      - name: Executar testes unitários da política de endpoint
+        run: gradle :app:testDebugUnitTest --no-daemon
+
       - name: Baixar o modelo de voz em português
         run: |
           mkdir -p app/src/main/assets
