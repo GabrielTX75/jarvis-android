@@ -3,9 +3,16 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: jarvis-apk-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -14,6 +21,13 @@ jobs:
     steps:
       - name: Baixar o código
         uses: actions/checkout@v4
+
+      - name: Verificar isolamento da WebView
+        timeout-minutes: 5
+        run: python3 tools/verify_webview_security.py
+
+      - name: Validar sintaxe do JavaScript local
+        run: node --check app/src/main/assets/app.js
 
       - name: Instalar Java 17
         uses: actions/setup-java@v4
@@ -25,6 +39,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10"
+
+      - name: Executar testes unitários da política de endpoint
+        run: gradle :app:testDebugUnitTest --no-daemon
 
       - name: Baixar o modelo de voz em português
         run: |
@@ -43,4 +60,4 @@ jobs:
           name: JARVIS-Android-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
