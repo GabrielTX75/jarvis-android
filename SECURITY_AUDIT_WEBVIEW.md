@@ -31,11 +31,12 @@ Esta alteração não remove permissões porque o código atual usa funcionalida
 
 - A chave `ai_key` continua armazenada em `EncryptedSharedPreferences`, mas `getSecret("ai_key")` agora retorna vazio. O JavaScript não carrega mais a chave para `S.apiKey`.
 - As solicitações OpenAI-compatible são enviadas por `HttpURLConnection` no Android. O endpoint/modelo são lidos das preferências nativas; o segredo é lido no processo nativo e enviado somente no cabeçalho Authorization.
-- Endpoints remotos exigem HTTPS e aprovação em diálogo nativo, com a origem aprovada armazenada no cofre criptografado. HTTP é permitido somente para `localhost` e `127.0.0.1`.
+- Endpoints remotos exigem HTTPS e aprovação em diálogo nativo. A aprovação é armazenada no cofre criptografado e vinculada à URL completa normalizada, incluindo caminho e porta; alterar o caminho no mesmo host exige nova confirmação. HTTP é permitido somente para `localhost` e `127.0.0.1`.
+- URLs com usuário/senha, query string ou fragmento são recusadas. Isso evita credenciais em URL e impede que uma query altere silenciosamente o destino autorizado.
 - Redirecionamentos HTTP são recusados para impedir que o cabeçalho Authorization seja encaminhado a outro host. Há limites de tamanho, quantidade de mensagens, tempo de conexão/resposta e número de solicitações pendentes.
 - Cancelar no cliente desconecta a conexão nativa quando possível; ao colocar o app em segundo plano, as solicitações da WebView também são canceladas e recebem um erro de interrupção. Isso não garante que o provedor remoto interrompa processamento já recebido.
 - Limite residual: o campo da chave ainda é digitado em uma página WebView e seu valor passa transitoriamente pelo JavaScript para ser salvo no cofre. A chave de busca também continua acessível ao JavaScript. Uma migração completa para entrada nativa e WebMessageListener permanece necessária.
-- A mudança de host remoto exige confirmação nativa. A alteração de caminho dentro da mesma origem aprovada não pede nova confirmação.
+- Qualquer alteração da URL completa normalizada exige confirmação nativa. A aprovação legada armazenada apenas por origem não autoriza mais chamadas; o próximo salvamento configura a nova aprovação específica.
 - A interface aguarda a conclusão da configuração/aprovação nativa antes de enviar a primeira solicitação, evitando uma corrida entre salvar o endpoint e iniciar a chamada.
 
 ## Armazenamento de artifacts de CI
