@@ -3,6 +3,7 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -10,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: jarvis-apk-${{ github.event.pull_request.head.ref || github.ref }}
+  group: jarvis-apk-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
