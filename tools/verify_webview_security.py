@@ -65,7 +65,12 @@ assert 'name == "ai_key"' in ACTIVITY, "A chave da IA não pode ser retornada ao
 assert "@JavascriptInterface fun requestAI(messagesJson: String, requestId: String)" in ACTIVITY
 assert "@JavascriptInterface fun cancelAI(requestId: String)" in ACTIVITY
 assert "connection.instanceFollowRedirects = false" in ACTIVITY
-assert "ai_approved_origin" in ACTIVITY, "O servidor remoto precisa de aprovação nativa"
+assert "ai_approved_endpoint" in ACTIVITY, "O endpoint completo precisa de aprovação nativa"
+assert 'getString("ai_approved_origin"' not in ACTIVITY, "A aprovação antiga apenas por origem não pode continuar autorizando chamadas"
+assert "parsed.rawQuery != null" in ACTIVITY, "Query strings devem ser recusadas para impedir credenciais na URL"
+assert "parsed.rawFragment != null" in ACTIVITY, "Fragmentos devem ser recusados na URL do endpoint"
+assert "approved != validatedEndpoint.normalized" in ACTIVITY, "A chamada deve conferir a URL completa aprovada"
+assert "O endpoint completo" in ACTIVITY, "O diálogo deve deixar claro que a aprovação cobre a URL completa"
 assert "cancelAllAiRequests(\"Consulta interrompida" in ACTIVITY
 assert "callbacksEnabled" in ACTIVITY
 assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
