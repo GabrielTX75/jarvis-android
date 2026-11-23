@@ -70,7 +70,7 @@ assert 'getString("ai_approved_origin"' not in ACTIVITY, "A aprovação antiga a
 assert "parsed.rawQuery != null" in ACTIVITY, "Query strings devem ser recusadas para impedir credenciais na URL"
 assert "parsed.rawFragment != null" in ACTIVITY, "Fragmentos devem ser recusados na URL do endpoint"
 assert "approved != validatedEndpoint.normalized" in ACTIVITY, "A chamada deve conferir a URL completa aprovada"
-assert "O endpoint completo" in ACTIVITY, "O diálogo deve deixar claro que a aprovação cobre a URL completa"
+assert "endpoint completo" in ACTIVITY, "O diálogo deve deixar claro que a aprovação cobre a URL completa"
 assert "cancelAllAiRequests(\"Consulta interrompida" in ACTIVITY
 assert "callbacksEnabled" in ACTIVITY
 assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
