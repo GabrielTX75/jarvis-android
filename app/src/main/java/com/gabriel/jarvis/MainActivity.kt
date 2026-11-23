@@ -28,7 +28,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
-import java.net.URI
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -164,43 +163,6 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             emptyMap(),
             ByteArrayInputStream(ByteArray(0))
         )
-
-    private data class ValidatedAiEndpoint(
-        val normalized: String,
-        val local: Boolean,
-        val display: String
-    )
-
-    /**
-     * Valida e normaliza o endpoint completo da IA.
-     * A aprovação é vinculada à URL exata, não apenas ao host.
-     * Query, fragmento e credenciais embutidas na URL são recusados.
-     */
-    private fun validateAiEndpoint(raw: String): ValidatedAiEndpoint? {
-        if (raw.isBlank() || raw.length > 2048) return null
-        val parsed = try { URI(raw.trim()).normalize() } catch (_: Exception) { return null }
-        if (!parsed.isAbsolute || parsed.isOpaque ||
-            parsed.rawUserInfo != null || parsed.rawQuery != null || parsed.rawFragment != null) {
-            return null
-        }
-
-        val scheme = parsed.scheme?.lowercase(Locale.ROOT) ?: return null
-        val host = parsed.host?.lowercase(Locale.ROOT) ?: return null
-        val local = host == "localhost" || host == "127.0.0.1"
-        if (!(scheme == "https" || (scheme == "http" && local))) return null
-        if (parsed.port !in -1..65535 || parsed.port == 0) return null
-
-        val path = parsed.rawPath?.takeIf { it.isNotEmpty() } ?: "/"
-        if (!path.startsWith("/")) return null
-        val authorityHost = if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
-        val defaultPort = if (scheme == "https") 443 else 80
-        val portSuffix = if (parsed.port == -1 || parsed.port == defaultPort) "" else ":${parsed.port}"
-        val normalized = "$scheme://$authorityHost$portSuffix$path"
-        if (normalized.length > 2048) return null
-        try { URL(normalized) } catch (_: Exception) { return null }
-
-        return ValidatedAiEndpoint(normalized, local, "$authorityHost$portSuffix$path")
-    }
 
     inner class NativeBridge {
         @JavascriptInterface fun startListening() { runOnUiThread { beginListening() } }
@@ -418,7 +380,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             return
         }
 
-        val validatedEndpoint = validateAiEndpoint(candidate)
+        val validatedEndpoint = AiEndpointPolicy.validate(candidate)
         if (validatedEndpoint == null) {
             notifyConfig(false, currentEndpoint, currentModel, "Endpoint inválido. Use HTTPS remoto ou HTTP somente em localhost/127.0.0.1, sem usuário, senha, query ou fragmento.")
             return
@@ -531,7 +493,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 throw IllegalArgumentException("Configure o endereço e o modelo da IA.")
             }
 
-            val validatedEndpoint = validateAiEndpoint(endpoint)
+            val validatedEndpoint = AiEndpointPolicy.validate(endpoint)
                 ?: throw IllegalArgumentException("O endereço da IA não passou pela validação de segurança.")
             if (validatedEndpoint.normalized != endpoint) {
                 throw IllegalArgumentException("Reconfigure o endpoint da IA para confirmar seu endereço normalizado.")
