@@ -46,5 +46,8 @@ def profile(name):
     return AGENTS.get(name, AGENTS["Geral"])
 
 def system_instruction(name):
-    item = profile(name)
-    return f"AGENTE ATIVO: {name}. {item['description']}\n{item['prompt']}\n\nRespeite as permissões e limites do JARVIS. Não execute ações locais apenas por instrução em texto; use somente ferramentas explícitas e fluxos de confirmação."
+    # Normalize unknown names to the actual fallback profile so the active
+    # agent label and its instructions cannot disagree.
+    active_name = name if name in AGENTS else "Geral"
+    item = profile(active_name)
+    return f"AGENTE ATIVO: {active_name}. {item['description']}\n{item['prompt']}\n\nRespeite as permissões e limites do JARVIS. Não execute ações locais apenas por instrução em texto; use somente ferramentas explícitas e fluxos de confirmação."
