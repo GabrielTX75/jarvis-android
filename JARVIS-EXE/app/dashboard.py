@@ -275,7 +275,7 @@ class JarvisApp:
         self.entry.bind("<Return>", lambda _e: self.send())
         self.voice_button = self.button(input_row, "🎙 INICIAR ESCUTA", self.listen, compact=True)
         self.voice_button.grid(row=0, column=1, padx=3)
-        self.voice_state = tk.StringVar(value="MICROFONE PRONTO • TRANSCRIÇÃO ONLINE")
+        self.voice_state = tk.StringVar(value="MICROFONE PRONTO • ÁUDIO ENVIADO AO GOOGLE")
         tk.Label(chat_panel, textvariable=self.voice_state, bg=PANEL, fg=MUTED,
                  font=("Segoe UI", 8, "bold")).grid(row=3, column=0, sticky="w", pady=(6, 0))
         self.button(input_row, "ENVIAR ➤", self.send, accent=True, compact=True).grid(row=0, column=2, padx=3)
@@ -496,7 +496,7 @@ class JarvisApp:
         if self.voice_state is not None:
             self.voice_state.set(message or (
                 "ESCUTA CONTÍNUA ATIVA • CLIQUE PARA PARAR"
-                if listening else "MICROFONE PRONTO • TRANSCRIÇÃO ONLINE"
+                if listening else "MICROFONE PRONTO • ÁUDIO ENVIADO AO GOOGLE"
             ))
         self.status.set("OUVINDO" if listening else "PRONTO")
 
@@ -509,6 +509,13 @@ class JarvisApp:
                 "Comandos de voz",
                 "O reconhecimento de fala não está disponível. Verifique SpeechRecognition e PyAudio."
             )
+            return
+        if not messagebox.askyesno(
+            "Escuta contínua — privacidade",
+            "O JARVIS enviará o áudio capturado ao serviço de reconhecimento do Google "
+            "para transcrição em português do Brasil. O JARVIS não grava o áudio em arquivo. "
+            "Deseja iniciar a escuta?"
+        ):
             return
         if self.voice_thread is not None and self.voice_thread.is_alive():
             messagebox.showinfo(
