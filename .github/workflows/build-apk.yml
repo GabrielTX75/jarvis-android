@@ -2,12 +2,19 @@ name: Build APK
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publicar a Release apk-latest (somente a partir da branch main)"
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - "**"
 
+# Builds de qualquer branch não precisam de permissão para criar Releases.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: jarvis-apk-${{ github.ref }}
@@ -17,6 +24,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - name: Baixar o código
         uses: actions/checkout@v4
@@ -49,22 +58,48 @@ jobs:
           scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
           if not scripts:
               raise SystemExit("Nenhum script inline encontrado")
-          Path("/tmp/jarvis-inline.js").write_text("\\n".join(scripts), encoding="utf-8")
+          Path("/tmp/jarvis-inline.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/jarvis-inline.js
+
+      - name: Executar testes unitários
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Compilar APK de depuração
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Publicar APK diretamente em Releases
+      - name: Guardar APK como artefato de validação
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publicar Release manual
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar APK validado pelo job de build
+        uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-APK
+          path: release
+
+      - name: Publicar APK na Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: JARVIS APK — versão mais recente
+          name: JARVIS APK — validação mais recente
           body: |
-            APK compilado automaticamente a partir do branch ${{ github.ref_name }}.
+            APK de depuração compilado pelo workflow.
+            Este arquivo serve para validação/instalação de teste; não é um instalador de produção assinado.
+            Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-            Instale o arquivo JARVIS.apk em um dispositivo Android.
-          files: app/build/outputs/apk/debug/*.apk
+          files: release/*.apk
           fail_on_unmatched_files: true
           make_latest: true
