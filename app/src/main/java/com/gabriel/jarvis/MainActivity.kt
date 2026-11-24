@@ -50,6 +50,9 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         private const val REQ_AUDIO = 4102
         private const val REQ_NOTIF = 4103
         private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "gemini_key", "tavily_key", "brapi_key", "pin_hash", "picovoice_key")
+        // Somente os valores que a interface web realmente precisa ler.
+        // Gemini, Tavily, brapi e Picovoice são consumidos por código nativo.
+        private val JS_READABLE_SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "pin_hash")
     }
 
     private val secretPrefs by lazy {
@@ -86,7 +89,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (uri.host == "appassets.androidplatform.net") return false
+                if (
+                    uri.scheme == "https" &&
+                    uri.host == "appassets.androidplatform.net" &&
+                    uri.port == -1 &&
+                    uri.userInfo == null
+                ) return false
                 if (uri.scheme == "https" || uri.scheme == "http") {
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
                     return true
@@ -203,7 +211,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }
         }
         @JavascriptInterface fun getSecret(name: String): String {
-            if (name !in SECRET_NAMES) return ""
+            // Não exponha à camada JavaScript chaves que só precisam ser usadas no Kotlin.
+            if (name !in JS_READABLE_SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
         }
 
