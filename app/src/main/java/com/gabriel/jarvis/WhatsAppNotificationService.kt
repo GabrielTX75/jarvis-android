@@ -133,7 +133,7 @@ class WhatsAppNotificationService : NotificationListenerService() {
     ): String? {
         val endpoint = cfg.getString("endpoint", "") ?: ""
         val modelo = cfg.getString("model", "") ?: ""
-        if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
+        if (!EndpointPolicy.isAllowed(endpoint)) return null
         val chave = try { WhatsAppSecrets.chaveIa(this) } catch (e: Exception) { "" }
         val sistema = "Você responde mensagens de WhatsApp em nome do dono do JARVIS. Responda em português do Brasil, em até 2 frases, de forma educada e natural. Não prometa nada, não invente informações e não envie dados pessoais nem senhas. Se a mensagem tratar de dinheiro, local, compromisso ou algo importante, diga apenas que o dono verá e responderá em breve. Devolva somente o texto da resposta."
         val usuario = (if (grupo) "Você foi marcado no grupo $titulo por $remetente" else "Mensagem de $remetente") +
