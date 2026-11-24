@@ -513,7 +513,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         val cfg = servico.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE)
         val endpoint = cfg.getString("endpoint", "") ?: ""
         val modelo = cfg.getString("model", "") ?: ""
-        if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
+        if (!EndpointPolicy.isAllowed(endpoint)) return null
         val chave = Cofre.ler(ctx, "ai_key")
         val saida = StringBuilder()
         val inicio = System.currentTimeMillis()
@@ -638,7 +638,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         val cfg = servico.getSharedPreferences("jarvis_wpp", Context.MODE_PRIVATE)
         val endpoint = cfg.getString("endpoint", "") ?: ""
         val modelo = cfg.getString("model", "") ?: ""
-        if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) return null
+        if (!EndpointPolicy.isAllowed(endpoint)) return null
         val chave = Cofre.ler(ctx, "ai_key")
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content",
             Acoes.prompt(servico)))
