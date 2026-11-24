@@ -29,10 +29,10 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 
 ## Voz contínua (sessão manual)
 
-- Clique em “INICIAR ESCUTA” para abrir uma sessão de microfone; clique em “PARAR ESCUTA” para encerrá-la.
+- Clique em “INICIAR ESCUTA” e confirme o aviso de privacidade para abrir uma sessão de microfone; clique em “PARAR ESCUTA” para encerrá-la.
 - O JARVIS reconhece frases em português do Brasil, envia cada transcrição ao chat e aguarda a resposta antes de voltar a ouvir.
 - A escuta fica pausada durante o processamento da IA e durante a fala sintetizada, evitando que o microfone trate a própria resposta como novo comando.
-- O reconhecimento usa o serviço online do Google por meio do SpeechRecognition. O áudio capturado é enviado ao serviço para transcrição; não é armazenado em arquivo pelo módulo de voz. É necessária internet.
+- O reconhecimento usa o serviço online do Google por meio do SpeechRecognition. Antes de cada sessão, o JARVIS informa e pede confirmação de que o áudio capturado será enviado ao Google para transcrição; o JARVIS não o armazena em arquivo. É necessária internet.
 - O encerramento pode levar alguns segundos se uma transcrição online já estiver em andamento. Fechar o JARVIS solicita o encerramento da sessão.
 - Ainda não há palavra de ativação (“Jarvis”), interrupção por voz, reconhecimento offline nem escuta com o aplicativo fechado.
 
