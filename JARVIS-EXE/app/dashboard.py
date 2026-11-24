@@ -23,6 +23,7 @@ from urllib.parse import quote_plus, quote
 from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, tavily_search
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
+from voice_session import run_continuous_session
 
 import keyring
 from desktop_tools import capture_screen, read_screen_text
@@ -105,7 +106,13 @@ class JarvisApp:
         self.modules.register(ModuleStatus("finance", "Análise financeira", ("market_data",), False, "Sem provedor de cotações conectado"))
         self.history = [{"role": "system", "content": SYSTEM}]
         self.busy = False
-        self.voice_busy = False
+        self.voice_session_active = False
+        self.voice_thread = None
+        self.voice_stop_event = threading.Event()
+        self.voice_resume_event = threading.Event()
+        self.voice_resume_event.set()
+        self.voice_error = None
+        self.speech_active = False
         self.voice_button = None
         self.voice_state = None
         self.monitor_open = False
@@ -266,9 +273,9 @@ class JarvisApp:
                               relief="flat", font=("Segoe UI", 10))
         self.entry.grid(row=0, column=0, sticky="ew", ipady=9, padx=(0, 7))
         self.entry.bind("<Return>", lambda _e: self.send())
-        self.voice_button = self.button(input_row, "🎙 OUVIR COMANDO", self.listen, compact=True)
+        self.voice_button = self.button(input_row, "🎙 INICIAR ESCUTA", self.listen, compact=True)
         self.voice_button.grid(row=0, column=1, padx=3)
-        self.voice_state = tk.StringVar(value="MICROFONE PRONTO")
+        self.voice_state = tk.StringVar(value="MICROFONE PRONTO • TRANSCRIÇÃO ONLINE")
         tk.Label(chat_panel, textvariable=self.voice_state, bg=PANEL, fg=MUTED,
                  font=("Segoe UI", 8, "bold")).grid(row=3, column=0, sticky="w", pady=(6, 0))
         self.button(input_row, "ENVIAR ➤", self.send, accent=True, compact=True).grid(row=0, column=2, padx=3)
@@ -421,8 +428,10 @@ class JarvisApp:
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
         if self.try_memory_command(prompt):
+            self.voice_resume_event.set()
             return
         if self.command_router.dispatch(prompt):
+            self.voice_resume_event.set()
             return
         self.history.append({"role": "user", "content": prompt})
         self.busy = True
@@ -474,63 +483,120 @@ class JarvisApp:
             self.root.after(0, lambda: self.ai_state.set("IA: erro"))
         finally:
             self.busy = False
+            if not self.speech_active:
+                self.voice_resume_event.set()
 
     def _voice_ui(self, listening, message=None):
         if self.voice_button is not None:
             self.voice_button.configure(
-                text="● ESCUTANDO..." if listening else "🎙 OUVIR COMANDO",
-                state="disabled" if listening else "normal",
+                text="■ PARAR ESCUTA" if listening else "🎙 INICIAR ESCUTA",
+                state="normal",
                 bg="#123d58" if listening else CARD2
             )
         if self.voice_state is not None:
-            self.voice_state.set(message or ("MICROFONE ATIVO • FALE AGORA" if listening else "MICROFONE PRONTO"))
+            self.voice_state.set(message or (
+                "ESCUTA CONTÍNUA ATIVA • CLIQUE PARA PARAR"
+                if listening else "MICROFONE PRONTO • TRANSCRIÇÃO ONLINE"
+            ))
         self.status.set("OUVINDO" if listening else "PRONTO")
 
     def listen(self):
-        if self.voice_busy:
+        if self.voice_session_active:
+            self.stop_voice_session()
             return
         if sr is None:
-            messagebox.showinfo("Comandos de voz",
-                "O reconhecimento de fala não está disponível. Verifique SpeechRecognition e PyAudio.")
+            messagebox.showinfo(
+                "Comandos de voz",
+                "O reconhecimento de fala não está disponível. Verifique SpeechRecognition e PyAudio."
+            )
             return
-        self.voice_busy = True
-        self._voice_ui(True)
-        threading.Thread(target=self._listen_worker, daemon=True).start()
+        if self.voice_thread is not None and self.voice_thread.is_alive():
+            messagebox.showinfo(
+                "Comandos de voz",
+                "A sessão anterior ainda está encerrando. Aguarde um instante."
+            )
+            return
 
-    def _listen_worker(self):
+        self.voice_stop_event = threading.Event()
+        self.voice_resume_event = threading.Event()
+        self.voice_resume_event.set()
+        self.voice_error = None
+        self.voice_session_active = True
+        self._voice_ui(True, "ESCUTA CONTÍNUA ATIVA • CLIQUE PARA PARAR")
+        self.voice_thread = threading.Thread(
+            target=self._listen_session_worker,
+            daemon=True,
+            name="JARVIS-Voice-Session"
+        )
+        self.voice_thread.start()
+
+    def stop_voice_session(self):
+        if not self.voice_session_active:
+            return
+        self.voice_stop_event.set()
+        self.voice_resume_event.set()
+        if self.voice_state is not None:
+            self.voice_state.set("ENCERRANDO MICROFONE...")
+        self.status.set("PRONTO")
+
+    def _listen_session_worker(self):
         try:
-            recognizer = sr.Recognizer()
-            recognizer.dynamic_energy_threshold = True
-            recognizer.pause_threshold = 0.75
-            recognizer.non_speaking_duration = 0.45
-            with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.8)
-                audio = recognizer.listen(source, timeout=8, phrase_time_limit=18)
-            self.root.after(0, lambda: self._voice_ui(False, "TRANSCRIÇÃO • PROCESSANDO"))
-            text = recognizer.recognize_google(audio, language="pt-BR")
-            self.root.after(0, lambda t=text: self._voice_text(t))
-        except sr.WaitTimeoutError:
-            self.root.after(0, lambda: self._voice_ui(False, "TEMPO ESGOTADO • TOQUE PARA TENTAR NOVAMENTE"))
-        except sr.UnknownValueError:
-            self.root.after(0, lambda: self._voice_ui(False, "NÃO ENTENDI • FALE MAIS PERTO DO MICROFONE"))
-        except sr.RequestError:
-            self.root.after(0, lambda: self._voice_ui(False, "RECONHECIMENTO INDISPONÍVEL • VERIFIQUE A INTERNET"))
+            run_continuous_session(
+                sr,
+                self.voice_stop_event,
+                self.voice_resume_event,
+                on_text=lambda phrase: self.root.after(
+                    0, lambda value=phrase: self._voice_text(value)
+                ),
+                on_status=lambda message: self.root.after(
+                    0,
+                    lambda value=message: self.voice_state.set(value)
+                    if self.voice_state is not None and self.voice_session_active else None
+                ),
+                on_error=self._voice_session_error
+            )
         except Exception as exc:
-            msg = str(exc)
-            self.root.after(0, lambda m=msg: self._voice_ui(False, "MICROFONE INDISPONÍVEL"))
-            self.root.after(0, lambda m=msg: self.add("VOZ", "Falha ao ouvir: " + m, True))
+            self.voice_error = "MICROFONE INDISPONÍVEL"
+            message = str(exc)
+            try:
+                self.root.after(
+                    0, lambda value=message: self.add(
+                        "VOZ", "Falha ao ouvir: " + value, True
+                    )
+                )
+            except Exception:
+                pass
         finally:
-            self.voice_busy = False
-            self.root.after(0, lambda: self.voice_button.configure(state="normal") if self.voice_button else None)
+            try:
+                self.root.after(0, self._voice_session_finished)
+            except Exception:
+                pass
+
+    def _voice_session_error(self, message):
+        self.voice_error = message
+        self.voice_stop_event.set()
+        self.voice_resume_event.set()
+
+    def _voice_session_finished(self):
+        self.voice_session_active = False
+        message = self.voice_error or "MICROFONE DESATIVADO"
+        self._voice_ui(False, message)
+        self.voice_error = None
 
     def _voice_text(self, text):
+        if not self.voice_session_active or self.voice_stop_event.is_set():
+            self.voice_resume_event.set()
+            return
         self.entry.delete(0, "end")
         self.entry.insert(0, text)
-        self._voice_ui(False, "ENTENDI • " + text[:90])
+        if self.voice_state is not None:
+            self.voice_state.set("COMANDO RECEBIDO • PROCESSANDO")
         self.send()
 
     def speak(self, text):
         """Speak with a fixed Brazilian Portuguese masculine neural voice."""
+        self.speech_active = True
+
         def worker():
             temp_path = None
             try:
@@ -594,7 +660,15 @@ class JarvisApp:
                         os.unlink(temp_path)
                     except OSError:
                         pass
-        threading.Thread(target=worker, daemon=True).start()
+                self.speech_active = False
+                if self.voice_session_active:
+                    self.voice_resume_event.set()
+        try:
+            threading.Thread(target=worker, daemon=True, name="JARVIS-Text-To-Speech").start()
+        except Exception:
+            self.speech_active = False
+            self.voice_resume_event.set()
+            raise
 
     def settings(self):
         win = tk.Toplevel(self.root)
@@ -1058,6 +1132,8 @@ class JarvisApp:
             messagebox.showerror("Visão / OCR", str(exc))
 
     def close(self):
+        self.voice_stop_event.set()
+        self.voice_resume_event.set()
         self.root.destroy()
 
 
