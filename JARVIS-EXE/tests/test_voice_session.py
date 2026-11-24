@@ -1,6 +1,7 @@
 import sys
 import unittest
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
@@ -66,7 +67,7 @@ class FakeRecognizer:
 
 
 class VoiceSessionTests(unittest.TestCase):
-    def test_timeout_then_phrase_pauses_until_caller_resumes(self):
+    def test_timeout_then_phrase_continues(self):
         stop_event = threading.Event()
         resume_event = threading.Event()
         resume_event.set()
@@ -91,6 +92,38 @@ class VoiceSessionTests(unittest.TestCase):
         self.assertEqual(recognizer.languages, ["pt-BR"])
         self.assertEqual(recognizer.calibration_duration, 0.8)
         self.assertEqual(recognizer.operation_timeout, 12)
+
+    def test_session_pauses_after_phrase_until_resumed(self):
+        stop_event = threading.Event()
+        resume_event = threading.Event()
+        resume_event.set()
+        recognizer = FakeRecognizer(["audio-1", "audio-2"], ["Primeiro", "Segundo"])
+        first_phrase = threading.Event()
+        received = []
+
+        def receive(text):
+            received.append(text)
+            if len(received) == 1:
+                first_phrase.set()
+            else:
+                stop_event.set()
+                resume_event.set()
+
+        worker = threading.Thread(
+            target=run_continuous_session,
+            args=(FakeSpeechModule(recognizer), stop_event, resume_event, receive),
+            daemon=True,
+        )
+        worker.start()
+        self.assertTrue(first_phrase.wait(timeout=1))
+        time.sleep(0.08)
+        self.assertEqual(len(recognizer.listen_calls), 1)
+        resume_event.set()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(received, ["Primeiro", "Segundo"])
+        self.assertEqual(len(recognizer.listen_calls), 2)
 
     def test_unrecognized_phrase_does_not_end_session(self):
         stop_event = threading.Event()
