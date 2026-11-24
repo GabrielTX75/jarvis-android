@@ -154,6 +154,14 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
     @Volatile private var ttsPronto = false
     private var tts: TextToSpeech? = null
     private val historico = ArrayList<JSONObject>()
+    private data class AcaoPendente(
+        val nome: String,
+        val args: JSONObject,
+        val expiraEm: Long,
+        val origemModelo: Boolean
+    )
+    @Volatile private var acaoPendente: AcaoPendente? = null
+    private val prazoConfirmacaoMs = 20_000L
 
     fun iniciar() {
         if (ativa) return
@@ -214,6 +222,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
 
     private fun processar(texto: String) {
         val t = semAcento(texto).trim()
+        if (resolverConfirmacao(t)) return
         if (Regex("\\b(tchau|encerrar|encerra|fechar|ate logo)\\b").containsMatchIn(t)) {
             falar("Até logo, senhor.")
             encerrar()
@@ -232,8 +241,27 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         responder(pedirIa(texto, null))
     }
 
-    /** Executa um comando (local ou pedido pela IA). */
-    private fun executarAcao(acao: String, args: JSONObject) {
+    /**
+     * Uma resposta JSON do modelo é uma proposta de ferramenta, nunca autorização.
+     * Ações sensíveis também pedem confirmação quando vierem de um comando direto.
+     */
+    private fun executarAcao(
+        acao: String,
+        args: JSONObject,
+        origemModelo: Boolean = false,
+        confirmada: Boolean = false
+    ) {
+        if (!confirmada && Acoes.requerConfirmacao(acao, origemModelo)) {
+            acaoPendente = AcaoPendente(
+                acao,
+                JSONObject(args.toString()),
+                System.currentTimeMillis() + prazoConfirmacaoMs,
+                origemModelo
+            )
+            val origem = if (origemModelo) "A IA propôs" else "Essa ação"
+            falar("$origem: ${Acoes.resumoAcao(acao, args)}. Diga confirmar ou cancelar. A confirmação expira em 20 segundos.")
+            return
+        }
         when (acao) {
             "pesquisar" -> {
                 definir(1)
@@ -254,7 +282,40 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         }
     }
 
-    /** Resposta da IA: JSON com "acao" executa; JSON com "fala" ou texto puro é falado. */
+    /**
+     * Enquanto houver uma ação pendente, nenhuma outra fala é interpretada como comando.
+     * A confirmação precisa ser explícita e chega por voz; silêncio ou dúvida nunca executam.
+     */
+    private fun resolverConfirmacao(texto: String): Boolean {
+        val pendente = acaoPendente ?: return false
+        if (System.currentTimeMillis() > pendente.expiraEm) {
+            acaoPendente = null
+            falar("A confirmação expirou. A ação não foi executada.")
+            return true
+        }
+
+        val comando = texto.replace(Regex("[.!?,]+$"), "").trim()
+        if (Regex("^(confirmar|confirmo|confirme|pode executar|pode fazer)$").matches(comando)) {
+            acaoPendente = null
+            executarAcao(
+                pendente.nome,
+                pendente.args,
+                origemModelo = pendente.origemModelo,
+                confirmada = true
+            )
+            return true
+        }
+        if (Regex("^(cancelar|cancela|nao|deixa|desiste|desistir)$").matches(comando)) {
+            acaoPendente = null
+            falar("Ação cancelada.")
+            return true
+        }
+
+        falar("Ainda estou aguardando. Diga confirmar ou cancelar.")
+        return true
+    }
+
+    /** Resposta da IA: JSON com "acao" propõe uma ferramenta; texto puro é falado. */
     private fun responder(resposta: String?) {
         if (resposta == null) {
             falar("Não consegui pensar agora. Confira a IA nas configurações.")
@@ -262,7 +323,11 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         }
         val json = extrairJson(resposta)
         if (json != null && json.has("acao")) {
-            executarAcao(json.optString("acao"), json.optJSONObject("args") ?: JSONObject())
+            executarAcao(
+                json.optString("acao"),
+                json.optJSONObject("args") ?: JSONObject(),
+                origemModelo = true
+            )
             return
         }
         falar(falaDe(resposta))
@@ -675,6 +740,7 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
 
     fun encerrar() {
         if (!ativa) return
+        acaoPendente = null
         ativa = false
         main.post {
             orb?.let { try { wm.removeView(it) } catch (_: Exception) {} }
