@@ -23,9 +23,18 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 
 - Navegação para projetos, auditoria, Security Lab, Money, Drive, Hologram Lab, arquivos e configurações.
 - Ferramentas rápidas: calculadora, bloco de notas, navegador, mapa, pasta de projetos e captura de tela com confirmação.
-- Comando de voz por reconhecimento de fala opcional (SpeechRecognition/PyAudio) e leitura em voz alta opcional (pyttsx3). Não existe identificação biométrica do locutor.
+- Escuta contínua iniciada e encerrada manualmente pelo usuário, com pausa automática enquanto a IA processa e enquanto o JARVIS fala. Reconhecimento pt-BR via serviço online do Google; o áudio é enviado para transcrição e não é salvo pelo módulo. Não há palavra de ativação, escuta em segundo plano após fechar o EXE ou identificação biométrica do locutor.
 - JARVIS Drive abre uma rota do destino informado no Google Maps; não obtém posição GPS, não dirige e não controla o veículo.
 - O chat IA usa o endpoint configurado e não executa automaticamente comandos do computador.
+
+## Voz contínua (sessão manual)
+
+- Clique em “INICIAR ESCUTA” para abrir uma sessão de microfone; clique em “PARAR ESCUTA” para encerrá-la.
+- O JARVIS reconhece frases em português do Brasil, envia cada transcrição ao chat e aguarda a resposta antes de voltar a ouvir.
+- A escuta fica pausada durante o processamento da IA e durante a fala sintetizada, evitando que o microfone trate a própria resposta como novo comando.
+- O reconhecimento usa o serviço online do Google por meio do SpeechRecognition. O áudio capturado é enviado ao serviço para transcrição; não é armazenado em arquivo pelo módulo de voz. É necessária internet.
+- O encerramento pode levar alguns segundos se uma transcrição online já estiver em andamento. Fechar o JARVIS solicita o encerramento da sessão.
+- Ainda não há palavra de ativação (“Jarvis”), interrupção por voz, reconhecimento offline nem escuta com o aplicativo fechado.
 
 ## Lembretes e notificações (implementação inicial)
 - O chat aceita comandos simples como “JARVIS, me avisa da reunião às 15h” e “me lembra da consulta amanhã às 9:30”.
@@ -39,6 +48,14 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 - **JARVIS MONEY:** painel inicial transparente para análise de mercado. A arquitetura planejada inclui fontes de cotações identificadas e datadas, análise de tendência/volume/volatilidade/notícias, cenários probabilísticos, backtesting, simulação com cotações reais, custos e controles de risco, além de histórico auditável. O painel atual é apenas a estrutura visual: ainda não está conectado a cotações, não produz sinais e não executa ordens, apostas ou movimentações financeiras.
 - **JARVIS DRIVE:** módulo futuro para localização autorizada, mapas, trânsito, planejamento de rotas e abertura de navegação compatível. O botão atual apenas informa o escopo; não acessa localização nem controla veículos. Direção autônoma não será improvisada por integração de API.
 
+## Agentes especializados e memória local
+
+- O seletor do chat oferece oito perfis: Geral, Pesquisa, Programação, Estudos, Escrita, Planejamento, Análise e Visão.
+- Os perfis orientam o estilo e o foco da resposta; não concedem permissões extras nem executam ações locais por conta própria.
+- A memória local salva apenas fatos solicitados explicitamente pelo usuário, permite listar e apagar itens e não sincroniza com o APK.
+- A memória atual é um arquivo JSON local e **não é criptografada**. Não guarde informações sensíveis nela; credenciais e tokens são recusados pelo módulo.
+- O fluxo Visão captura a tela somente após autorização, extrai texto localmente via OCR e envia o texto extraído ao histórico. Isso ainda não é compreensão geral de imagens nem observação contínua da tela.
+
 ## JARVIS Security Lab — Blue Team e Red Team
 
 - **Blue Team — auditoria local:** análise estática básica da pasta escolhida pelo usuário, com confirmação de escopo e ocorrências para revisão manual. Não certifica segurança.
@@ -51,7 +68,7 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 
 Os itens abaixo são metas de desenvolvimento, não recursos já concluídos:
 
-- Voz bidirecional contínua em português, ativação por comando, interrupção por voz e opção de repetir resposta.
+- Palavra de ativação (“Jarvis”), interrupção por voz, reconhecimento offline e retomada da sessão após reinicialização.
 - Visão computacional: captura apenas sob comando, OCR local integrado ao chat e interpretação contextual da janela selecionada.
 - Controle assistido de mouse/teclado com plano visível, confirmação para ações sensíveis, pausa imediata e botão para o usuário assumir o controle.
 - Memória persistente local e protegida, com revisão e controle pelo usuário; sem sincronização com o APK.
@@ -74,10 +91,10 @@ Abra a aba Actions do repositório, selecione Build JARVIS EXE e execute Run wor
 - Modelos 3D realistas/CAD com peças corretas, materiais, dimensões e bibliotecas de ativos; o laboratório atual usa wireframes procedurais esquemáticos, não réplicas técnicas de veículos/edifícios.
 - Calibração de gestos robusta para múltiplas mãos, controles customizáveis e compatibilidade testada com webcams diferentes.
 - Controle genérico e seguro do mouse/teclado, com plano visível, confirmação por ação, pausa e botão de assumir controle.
-- OCR totalmente integrado ao chat e interpretação contextual de janelas.
+- Interpretação multimodal real de imagens e janelas selecionadas; o fluxo atual integra OCR local de texto capturado.
 - Voz bidirecional contínua e interrupção por voz.
-- Agentes especializados de pesquisa, estudo, escrita, planejamento e análise.
-- Memória persistente local criptografada, controles de privacidade, múltiplos perfis realmente isolados e permissões por perfil.
+- Evoluir os oito perfis existentes com ferramentas especializadas e testes de qualidade por tarefa.
+- Criptografia da memória local em repouso, múltiplos perfis realmente isolados e permissões por perfil.
 - Modo Hacker técnico completo para Red Team/Blue Team em ativos próprios/autorizados, com escopo, evidência mínima, laboratório, correção e reteste. A auditoria local atual é apenas estática e básica.
 - Atualizador com assinatura, backup, validação de integridade e rollback.
 - Testes de segurança, privacidade, desempenho e compatibilidade em Windows real.
@@ -86,7 +103,7 @@ Abra a aba Actions do repositório, selecione Build JARVIS EXE e execute Run wor
 O JARVIS não deve invadir terceiros, roubar credenciais, persistir ocultamente, evadir detecção, extrair dados pessoais nem apagar rastros. Ações de risco (pagamento, compra, publicação, exclusão, instalação, privilégios elevados) exigem confirmação explícita. Não contornar autenticação bancária ou controles do Windows.
 
 ## Estado de validação
-Código e workflow adicionados ao branch de desenvolvimento. A compilação e os testes ainda precisam concluir com sucesso no GitHub Actions e o EXE precisa ser testado em Windows antes de ser considerado pronto.
+O workflow do Windows executa testes unitários, empacota o EXE com PyInstaller e publica o executável na Release `exe-latest` quando o job termina com sucesso. Uma compilação bem-sucedida no CI confirma testes e empacotamento automatizados, mas ainda não substitui o teste manual do executável em um Windows real com microfone, áudio e credenciais configurados.
 
 
 ## Navegador interno do JARVIS
