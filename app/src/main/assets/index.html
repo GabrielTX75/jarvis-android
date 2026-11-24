@@ -431,6 +431,10 @@ async function requestAI(messages,{signal,onText,modelTier}={}){
  }
  const endpoint=(S.endpoint||"").trim(),model=(S.model||"").trim();
  if(!endpoint||!model)throw providerError("Configure o endereço e o nome do modelo nas configurações.");
+ let endpointUrl;try{endpointUrl=new URL(endpoint)}catch{throw providerError("O endereço da IA não é uma URL válida.")}
+ const localEndpoint=endpointUrl.protocol==="http:"&&(endpointUrl.hostname==="localhost"||endpointUrl.hostname==="127.0.0.1");
+ if(endpointUrl.protocol!=="https:"&&!localEndpoint)throw providerError("Por segurança, use HTTPS para servidores remotos. HTTP só é permitido em localhost.");
+ if(endpointUrl.username||endpointUrl.password)throw providerError("Remova usuário e senha do endereço da IA; use a chave no campo próprio.");
  const requestController=new AbortController();let timedOut=false;
  const timeout=setTimeout(()=>{timedOut=true;requestController.abort()},180000);
  const relayAbort=()=>requestController.abort();if(signal){if(signal.aborted)relayAbort();else signal.addEventListener("abort",relayAbort,{once:true})}
