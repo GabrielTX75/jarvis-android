@@ -101,3 +101,21 @@ O desenvolvimento será feito em etapas e nesta branch de trabalho, preservando 
 
 ## Interface Android
 A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identidade visual do JARVIS EXE. A alteração visual não significa que os recursos holográficos do EXE estejam disponíveis no Android.
+
+
+## Evolução 08 — autorização de ferramentas e proteção da ponte Android
+
+- Respostas JSON do modelo que pedem uma ferramenta são tratadas como propostas, não como autorização automática.
+- Ações propostas pela IA exigem confirmação por voz, exceto consultas locais de baixo risco (bateria, hora, data, cálculo, status do código e descrição dos módulos).
+- Toques na tela, digitação, exclusão de memórias/anotações e organização/desfazimento de arquivos exigem confirmação mesmo quando reconhecidos diretamente pela voz.
+- A confirmação aceita “confirmar” ou “cancelar” e expira em 20 segundos. Silêncio, resposta ambígua ou expiração não executam a ação.
+- Conteúdo de telas, páginas, notificações, documentos e mensagens é tratado no prompt como dado não confiável, nunca como instrução privilegiada.
+- A ponte JavaScript não pode mais ler as chaves Gemini, Tavily, brapi ou Picovoice. A leitura pela interface fica limitada aos valores usados pelos fluxos atuais (Groq/IA, busca e PIN).
+- **Limitação ainda existente:** a chave Groq/IA necessária à chamada compatível continua sendo lida pela interface e fica em memória JavaScript durante a requisição. Para distribuição pública, a arquitetura correta continua sendo um gateway HTTPS no backend; não embutir nem compartilhar chaves no APK.
+
+## CI Android — artefato separado de publicação
+
+- Push em qualquer branch executa validação JavaScript, testes unitários e compilação do APK de depuração; o APK fica disponível como artefato de CI por 14 dias.
+- O workflow não publica mais uma Release a cada push nem concede permissão de escrita ao job de build.
+- Publicação da Release `apk-latest` exige execução manual do workflow, opção `publish_release=true` e branch `main`.
+- O arquivo publicado por esse fluxo é um APK de depuração para validação, não um instalador de produção assinado.
