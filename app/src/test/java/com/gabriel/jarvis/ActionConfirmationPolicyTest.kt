@@ -61,4 +61,18 @@ class ActionConfirmationPolicyTest {
         assertFalse(Acoes.requerConfirmacao("pesquisar", origemModelo = false))
         assertFalse(Acoes.requerConfirmacao("bateria", origemModelo = false))
     }
+    @Test
+    fun remoteAiEndpointsMustUseHttps() {
+        assertTrue(EndpointPolicy.isAllowed("https://api.groq.com/openai/v1/chat/completions"))
+        assertTrue(EndpointPolicy.isAllowed("http://localhost:11434/v1/chat/completions"))
+        assertTrue(EndpointPolicy.isAllowed("http://127.0.0.1:8000/v1/chat/completions"))
+        assertFalse(EndpointPolicy.isAllowed("http://example.com/v1/chat/completions"))
+        assertFalse(EndpointPolicy.isAllowed("http://192.168.0.10:8000/v1/chat/completions"))
+    }
+
+    @Test
+    fun aiEndpointMustNotContainEmbeddedCredentials() {
+        assertFalse(EndpointPolicy.isAllowed("https://user:password@example.com/v1/chat/completions"))
+        assertFalse(EndpointPolicy.isAllowed("not a URL"))
+    }
 }
