@@ -111,6 +111,7 @@ A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identida
 - A confirmação aceita “confirmar” ou “cancelar” e expira em 20 segundos. Silêncio, resposta ambígua ou expiração não executam a ação.
 - Conteúdo de telas, páginas, notificações, documentos e mensagens é tratado no prompt como dado não confiável, nunca como instrução privilegiada.
 - A ponte JavaScript não pode mais ler as chaves Gemini, Tavily, brapi ou Picovoice. A leitura pela interface fica limitada aos valores usados pelos fluxos atuais (Groq/IA, busca e PIN).
+- O endpoint de IA é validado antes do envio: HTTPS é obrigatório para servidores remotos; HTTP só é aceito em `localhost`/`127.0.0.1`, e URLs com usuário/senha embutidos são recusadas. A regra também vale para as chamadas nativas do núcleo e do respondedor do WhatsApp.
 - **Limitação ainda existente:** a chave Groq/IA necessária à chamada compatível continua sendo lida pela interface e fica em memória JavaScript durante a requisição. Para distribuição pública, a arquitetura correta continua sendo um gateway HTTPS no backend; não embutir nem compartilhar chaves no APK.
 
 ## CI Android — artefato separado de publicação
