@@ -918,6 +918,9 @@ class JarvisApp:
 
     def apply_workspace_action(self, action):
         name = action.get("name", "projeto")
+        from project_workspace import ROOT
+        if not self.require_access("workspace_write", ROOT / name):
+            return
         files = action.get("files", [])
         count = len(files) if isinstance(files, list) else 0
         if not messagebox.askyesno(
@@ -945,6 +948,9 @@ class JarvisApp:
             messagebox.showerror("Projeto", str(exc))
 
     def open_vscode_dialog(self):
+        from project_workspace import ROOT
+        if not self.require_access("launch_app", "Code.exe") or not self.require_access("workspace_open", ROOT):
+            return
         if not messagebox.askyesno(
             "Abrir Visual Studio Code",
             "Permitir que o JARVIS abra o VS Code na pasta de projetos?"
@@ -1014,6 +1020,8 @@ class JarvisApp:
 
     def _confirm_and_run_project_task(self, name, task):
         from project_workspace import ROOT
+        if not self.require_access("run_project_task", ROOT / name, task):
+            return
         project_path = ROOT / name
         description = {
             "flutter_analyze": "flutter analyze (análise estática)",
@@ -1053,6 +1061,8 @@ class JarvisApp:
             self.root.after(0, lambda: self.status.set("ERRO"))
 
     def open_app(self, exe, label):
+        if not self.require_access("launch_app", exe):
+            return
         if not messagebox.askyesno("Autorizar ação", f"Permitir abrir {label}?"):
             return
         try:
@@ -1195,8 +1205,13 @@ class JarvisApp:
             self.open_internal_url("https://www.youtube.com/results?search_query=" + quote_plus(query), "VÍDEO")
 
     def new_project(self):
+        from project_workspace import ROOT
         name = simpledialog.askstring("Novo projeto", "Nome do projeto (letras, números, _ ou -):")
         if not name:
+            return
+        if not self.require_access("workspace_write", ROOT / name):
+            return
+        if not messagebox.askyesno("Criar projeto", "Criar a pasta do projeto '" + name + "' em " + str(ROOT) + "?"):
             return
         try:
             path = create_project(name)
@@ -1214,6 +1229,8 @@ class JarvisApp:
     def audit_local(self):
         folder = filedialog.askdirectory(title="Selecione uma pasta sua/autorizada")
         if not folder:
+            return
+        if not self.require_access("audit_folder", folder):
             return
         if not messagebox.askyesno("Confirmar escopo", "Confirma que esta pasta é sua ou que você tem autorização para auditá-la?"):
             return
@@ -1251,6 +1268,8 @@ class JarvisApp:
 
     def open_projects_folder(self):
         from project_workspace import ROOT
+        if not self.require_access("workspace_open", ROOT):
+            return
         ROOT.mkdir(parents=True, exist_ok=True)
         if messagebox.askyesno("Abrir projetos", f"Abrir a pasta local?\n{ROOT}"):
             try:
@@ -1260,6 +1279,8 @@ class JarvisApp:
                 messagebox.showerror("Arquivos", str(exc))
 
     def screen_capture(self):
+        if not self.require_access("capture_screen"):
+            return
         if not messagebox.askyesno("Captura de tela", "Autoriza capturar a tela atual?"):
             return
         destination = filedialog.asksaveasfilename(defaultextension=".png",
@@ -1334,6 +1355,8 @@ class JarvisApp:
         refresh()
 
     def capture_and_ocr(self):
+        if not self.require_access("capture_screen"):
+            return
         if not messagebox.askyesno("Visão e OCR", "Autoriza capturar a tela atual e extrair texto localmente?"):
             return
         source = filedialog.asksaveasfilename(
