@@ -35,6 +35,7 @@ class AccessControllerTests(unittest.TestCase):
             self.assertFalse(access.check("run_project_task", project, "python_tests"))
             self.assertFalse(access.check("capture_screen"))
             self.assertFalse(access.check("audit_folder", outside))
+            self.assertTrue(access.check("audit_folder", project))
             self.assertFalse(access.check("admin_elevation"))
 
     def test_school_profile_does_not_grant_os_or_admin_rights(self):
