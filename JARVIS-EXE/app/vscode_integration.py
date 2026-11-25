@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from project_workspace import ROOT, create_project, write_project_file
@@ -92,3 +93,33 @@ def create_generated_project(name, files):
     for relative, content in normalized:
         written.append(write_project_file(name, relative, content))
     return root, tuple(written)
+
+
+_TASKS = {
+    "flutter_analyze": ("flutter", "analyze"),
+    "flutter_test": ("flutter", "test"),
+    "dart_analyze": ("dart", "analyze"),
+    "python_compile": (sys.executable, "-m", "compileall", "-q", "."),
+    "python_tests": (sys.executable, "-m", "unittest", "discover", "-s", "tests"),
+}
+
+
+def run_project_task(project_path, task, timeout=180):
+    """Run one explicit, allowlisted validation task without a shell."""
+    if task not in _TASKS:
+        raise ValueError("Tarefa de validação não permitida.")
+    folder = Path(project_path).expanduser().resolve()
+    if not folder.is_dir():
+        raise FileNotFoundError("A pasta do projeto não existe.")
+    command = list(_TASKS[task])
+    if command[0] not in {sys.executable}:
+        executable = shutil.which(command[0])
+        if not executable:
+            raise FileNotFoundError(
+                f"{command[0]} não foi encontrado no PATH. Instale o SDK correspondente."
+            )
+        command[0] = executable
+    return subprocess.run(
+        command, cwd=str(folder), shell=False, capture_output=True,
+        text=True, errors="replace", timeout=timeout, check=False
+    )
