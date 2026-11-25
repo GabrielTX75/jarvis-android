@@ -928,7 +928,7 @@ class JarvisApp:
 
     def try_project_task_command(self, prompt):
         match = re.match(
-            r"^(?:jarvis[, ]*)?(analise|analisar|verifique|validar|teste|testar|rode|executar)\\s+(flutter|dart|python)\\s+(?:do\\s+projeto\\s+)?([A-Za-z0-9_-]{1,48})$",
+            r"^(?:jarvis[, ]*)?(analise|analisar|verifique|validar|teste|testar|rode|executar)\s+(flutter|dart|python)\s+(?:do\s+projeto\s+)?([A-Za-z0-9_-]{1,48})$",
             prompt.strip(), re.I
         )
         if not match:
@@ -982,7 +982,7 @@ class JarvisApp:
             "python_tests": "testes Python (executam o código de teste do projeto)"
         }[task]
         warning = (
-            "\\n\\nAtenção: testes executam código existente no projeto. "
+            "\n\nAtenção: testes executam código existente no projeto. "
             "Só continue se você confia nos arquivos."
             if task in {"flutter_test", "python_tests"} else ""
         )
@@ -1005,7 +1005,7 @@ class JarvisApp:
             if not output.strip():
                 output = "O comando terminou sem saída."
             status = "SUCESSO" if result.returncode == 0 else f"ERRO (código {result.returncode})"
-            self.root.after(0, lambda: self.add("VALIDAÇÃO • " + status, f"{name}:\\n{output[:12000]}", result.returncode != 0))
+            self.root.after(0, lambda: self.add("VALIDAÇÃO • " + status, f"{name}:\n{output[:12000]}", result.returncode != 0))
             self.root.after(0, lambda: self.status.set("PRONTO"))
         except Exception as exc:
             self.root.after(0, lambda: self.add("VALIDAÇÃO • ERRO", str(exc), True))
