@@ -137,6 +137,7 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - O manifesto aceita até 40 arquivos, 500 KB por arquivo e 2 MB no total. Caminhos absolutos, travessia de diretórios, duplicatas e extensões executáveis comuns são recusados.
 - O conteúdo gerado **não é executado automaticamente**. O JARVIS agora oferece tarefas limitadas e confirmadas: `flutter analyze --no-pub`, `flutter test --no-pub`, `dart analyze`, compilação sintática Python e descoberta de testes Python. Testes executam código do projeto e exigem confirmação explícita.
 - O JARVIS não executa comandos livres do terminal nem aceita texto da IA como comando de shell. No painel Controle avançado do Windows, o usuário pode instalar um pacote PyPI em um ambiente virtual `.venv` dentro de uma pasta de projeto escolhida; o JARVIS EXE não instala pacotes em seu próprio runtime empacotado.
+- Depois da instalação, no VS Code use `Python: Select Interpreter` e escolha `.venv\\Scripts\\python.exe` (Windows). O JARVIS não troca o interpretador do editor nem altera o `.gitignore`; mantenha `.venv/` fora do controle de versão.
 - É necessário ter o Visual Studio Code instalado no Windows. O JARVIS procura `Code.exe` nos locais padrão ou no PATH; se não encontrar, informa a dependência.
 - O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
 
