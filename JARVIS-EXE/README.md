@@ -50,7 +50,9 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 
 ## Agentes especializados e memória local
 
-- O seletor do chat oferece oito perfis: Geral, Pesquisa, Programação, Estudos, Escrita, Planejamento, Análise e Visão.
+- O seletor do chat oferece nove perfis: Geral, Pesquisa, Programação, Flutter/Dart, Estudos, Escrita, Planejamento, Análise e Visão.
+- O perfil **Flutter/Dart** é especializado em criar projetos Flutter completos: estrutura de arquivos, pubspec.yaml, telas/widgets, navegação, estado, serviços, tratamento de erros e testes. O JARVIS deve indicar os caminhos de cada arquivo e comandos para validar/compilar.
+- A geração de código não significa que o Flutter SDK esteja instalado ou que o EXE consiga compilar APK/EXE sozinho. A compilação depende do Flutter SDK, Dart SDK, Android SDK e ferramentas da plataforma instalados no computador; o JARVIS não deve afirmar que compilou sem executar e verificar o resultado.
 - Os perfis orientam o estilo e o foco da resposta; não concedem permissões extras nem executam ações locais por conta própria.
 - A memória local salva apenas fatos solicitados explicitamente pelo usuário, permite listar e apagar itens e não sincroniza com o APK.
 - A memória atual é um arquivo JSON local e **não é criptografada**. Não guarde informações sensíveis nela; credenciais e tokens são recusados pelo módulo.
