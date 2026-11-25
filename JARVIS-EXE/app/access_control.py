@@ -59,6 +59,8 @@ class AccessController:
             return self._inside_workspace(resource) and detail in SCHOOL_ALLOWED_TASKS
         if action == "browser":
             return True
+        if action == "audit_folder":
+            return self._inside_workspace(resource)
         # No screen capture, external folder audits, tests that execute project
         # code, dependency installation, deletion or administrator actions.
         return False
