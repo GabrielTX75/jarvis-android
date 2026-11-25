@@ -28,6 +28,7 @@ from voice_session import run_continuous_session
 import keyring
 from desktop_tools import capture_screen, read_screen_text
 from project_workspace import create_project, write_project_file
+from vscode_integration import create_generated_project, open_in_vscode
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
@@ -78,7 +79,14 @@ SYSTEM = (
     "Você é o JARVIS, assistente em português do Brasil. Seja claro, útil e honesto. "
     "Só confirme uma ação local depois que o módulo correspondente retornar sucesso. "
     "Se não houver ferramenta conectada, explique a limitação sem fingir execução. "
-    "Nunca invente dados do sistema, localização, preços ou resultados de auditoria."
+    "Nunca invente dados do sistema, localização, preços ou resultados de auditoria. "
+    "Para criar ou gravar um projeto/arquivos quando o usuário pedir explicitamente, "
+    "responda normalmente e acrescente ao final um único bloco de ação no formato "
+    "[[JARVIS_WORKSPACE_ACTION]]{\\"name\\":\\"nome_projeto\\",\\"files\\":[{\\"path\\":\\"caminho/arquivo.ext\\",\\"content\\":\\"conteúdo completo\\\"}]}[[/JARVIS_WORKSPACE_ACTION]]. "
+    "Use JSON válido; não inclua Markdown dentro do bloco. Limite-se a arquivos de texto de código/configuração. "
+    "Nunca inclua comandos para execução automática, scripts de instalação, executáveis ou segredos. "
+    "O JARVIS pedirá confirmação antes de gravar e abrir o VS Code. "
+    "Se o usuário só pedir um exemplo ou explicação, não gere o bloco de ação."
 )
 
 class JarvisApp:
@@ -94,6 +102,7 @@ class JarvisApp:
         self.memory = LocalMemory(APP_DIR / "memory.json")
         self.agent_var = tk.StringVar(value="Geral")
         self.command_router = CommandRouter()
+        self.command_router.register("vscode", self.try_vscode_command, priority=5)
         self.command_router.register("reminders", self.try_reminder_command, priority=10)
         self.command_router.register("browser", self.try_browser_command, priority=20)
         self.modules = ModuleRegistry()
@@ -470,8 +479,16 @@ class JarvisApp:
                     errors.append("Gemini: " + str(exc))
             if answer is None:
                 raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq ou Gemini em Configurações."]))
+            workspace_action = self.extract_workspace_action(answer)
+            if workspace_action:
+                answer = re.sub(
+                    r"\\[\\[JARVIS_WORKSPACE_ACTION\\]\\].*?\\[\\[/JARVIS_WORKSPACE_ACTION\\]\\]",
+                    "", answer, flags=re.S
+                ).strip()
             self.history.append({"role": "assistant", "content": answer})
             self.root.after(0, lambda a=answer, p=provider: self.add("JARVIS • " + p, a))
+            if workspace_action:
+                self.root.after(0, lambda action=workspace_action: self.apply_workspace_action(action))
             self.root.after(0, lambda: self.status.set("ONLINE"))
             self.root.after(0, lambda p=provider: self.ai_state.set("IA: " + p + " conectada"))
             if self.config.get("speak_replies"):
@@ -824,6 +841,7 @@ class JarvisApp:
                  bg=PANEL, fg=CYAN).pack(padx=16, pady=12)
         actions = [
             ("Abrir Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
+            ("Abrir Visual Studio Code", self.open_vscode_dialog),
             ("Abrir Bloco de Notas", lambda: self.open_app("notepad.exe", "Bloco de Notas")),
             ("Abrir navegador", self.open_browser),
             ("Pesquisar na web", self.web_search),
@@ -836,6 +854,73 @@ class JarvisApp:
         ]
         for label, action in actions:
             self.button(win, label, action, compact=True).pack(fill="x", padx=16, pady=4)
+
+    def extract_workspace_action(self, answer):
+        """Extract a strictly structured project manifest from an AI response."""
+        match = re.search(
+            r"\\[\\[JARVIS_WORKSPACE_ACTION\\]\\](.*?)\\[\\[/JARVIS_WORKSPACE_ACTION\\]\\]",
+            answer or "", flags=re.S
+        )
+        if not match:
+            return None
+        try:
+            payload = json.loads(match.group(1).strip())
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict) or set(payload) != {"name", "files"}:
+            return None
+        return payload
+
+    def apply_workspace_action(self, action):
+        name = action.get("name", "projeto")
+        files = action.get("files", [])
+        count = len(files) if isinstance(files, list) else 0
+        if not messagebox.askyesno(
+            "Confirmar criação do projeto",
+            f"O JARVIS preparou {count} arquivo(s) para o projeto '{name}'.\\n"
+            "Os arquivos serão gravados somente na pasta de projetos do JARVIS. "
+            "Nenhum código será executado. Deseja continuar?"
+        ):
+            self.add("PROJETOS", "Criação cancelada; nenhum arquivo foi gravado.")
+            return
+        try:
+            project_path, written = create_generated_project(name, files)
+            self.add("PROJETOS", f"Projeto criado em {project_path} ({len(written)} arquivo(s)).")
+            if messagebox.askyesno(
+                "Abrir no VS Code",
+                f"Projeto salvo. Deseja abrir '{name}' no Visual Studio Code?"
+            ):
+                try:
+                    open_in_vscode(project_path)
+                    self.add("CONTROLE", f"VS Code aberto no projeto {name}.")
+                except Exception as exc:
+                    self.add("CONTROLE", f"Projeto salvo, mas não consegui abrir o VS Code: {exc}", True)
+        except Exception as exc:
+            self.add("PROJETOS", f"Não foi possível criar o projeto: {exc}", True)
+            messagebox.showerror("Projeto", str(exc))
+
+    def open_vscode_dialog(self):
+        if not messagebox.askyesno(
+            "Abrir Visual Studio Code",
+            "Permitir que o JARVIS abra o VS Code na pasta de projetos?"
+        ):
+            return
+        try:
+            open_in_vscode()
+            self.add("CONTROLE", "Visual Studio Code aberto na pasta de projetos.")
+        except Exception as exc:
+            messagebox.showerror("Visual Studio Code", str(exc))
+            self.add("CONTROLE", str(exc), True)
+
+    def try_vscode_command(self, prompt):
+        text = prompt.strip()
+        if not re.match(
+            r"^(?:jarvis[, ]*)?(?:abra|abrir|abre|inicie|iniciar)\\s+(?:o\\s+)?(?:visual\\s+studio\\s+code|vs\\s*code)$",
+            text, re.I
+        ):
+            return False
+        self.open_vscode_dialog()
+        return True
 
     def open_app(self, exe, label):
         if not messagebox.askyesno("Autorizar ação", f"Permitir abrir {label}?"):
