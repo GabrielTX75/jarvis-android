@@ -23,6 +23,7 @@ from urllib.parse import quote_plus, quote
 from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, tavily_search
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
+from access_control import AccessController, PERSONAL, SCHOOL
 from voice_session import run_continuous_session
 
 import keyring
@@ -100,6 +101,9 @@ class JarvisApp:
         root.configure(bg=BG)
         APP_DIR.mkdir(parents=True, exist_ok=True)
         self.config = self.load_config()
+        from project_workspace import ROOT as PROJECT_ROOT
+        self.access = AccessController(self.config.get("access_mode", PERSONAL), PROJECT_ROOT, APP_DIR / "access_audit.jsonl")
+        self.access_mode_state = tk.StringVar(value="PERFIL: " + self.access.mode.upper())
         self.reminders = ReminderManager(APP_DIR / "reminders.json")
         self.memory = LocalMemory(APP_DIR / "memory.json")
         self.agent_var = tk.StringVar(value="Geral")
@@ -150,7 +154,8 @@ class JarvisApp:
             "model": data.get("model", "openai/gpt-oss-120b"),
             "api_key": keyring.get_password("JARVIS", "api_key") or "",
             "location_label": data.get("location_label", ""),
-            "speak_replies": bool(data.get("speak_replies", False))
+            "speak_replies": bool(data.get("speak_replies", False)),
+            "access_mode": data.get("access_mode", PERSONAL) if data.get("access_mode", PERSONAL) in {PERSONAL, SCHOOL} else PERSONAL
         }
 
     def save_config(self):
@@ -201,6 +206,7 @@ class JarvisApp:
         self.date_label = tk.Label(right, text="", bg="#061625", fg=MUTED,
                                    font=("Segoe UI", 8))
         self.date_label.pack(anchor="e")
+        tk.Label(right, textvariable=self.access_mode_state, bg="#061625", fg=CYAN, font=("Segoe UI", 8, "bold")).pack(anchor="e")
 
         nav = tk.Frame(self.root, bg="#071b2b", padx=14, pady=7)
         nav.pack(fill="x")
@@ -697,12 +703,33 @@ class JarvisApp:
             self.voice_resume_event.set()
             raise
 
+    def require_access(self, action, resource=None, detail=None):
+        if self.access.authorize(action, resource, detail):
+            return True
+        message = (
+            "A ação '" + str(action) + "' não está liberada no perfil " + self.access.mode.upper() + ". "
+            "No Modo Escola, o JARVIS não tenta contornar permissões ou políticas do computador."
+        )
+        self.add("PERMISSÕES", message, True)
+        messagebox.showwarning("Permissão bloqueada", message)
+        return False
+
     def settings(self):
         win = tk.Toplevel(self.root)
         win.title("Configurações e Cofre de APIs — JARVIS")
         win.configure(bg=PANEL)
         win.geometry("820x860")
         fields = {}
+        tk.Label(win, text="PERFIL DE ACESSO AO COMPUTADOR", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(12, 4))
+        mode_var = tk.StringVar(value=self.access.mode)
+        mode_row = tk.Frame(win, bg=PANEL)
+        mode_row.pack(fill="x", padx=16)
+        ttk.Combobox(mode_row, textvariable=mode_var, state="readonly", width=18,
+                     values=(PERSONAL, SCHOOL)).pack(side="left")
+        tk.Label(mode_row,
+                 text="Pessoal: ações locais confirmadas. Escola: perfil restrito, sempre sujeito ao Windows.",
+                 bg=PANEL, fg=MUTED, wraplength=570, justify="left").pack(side="left", padx=10)
         api_services = {
             "groq": ("Groq API Key", "groq_key"),
             "gemini": ("Gemini API Key", "gemini_key"),
@@ -796,6 +823,20 @@ class JarvisApp:
                  bg=PANEL, fg=MUTED, wraplength=700, justify="left").pack(anchor="w", padx=16, pady=6)
 
         def save():
+            requested_mode = mode_var.get()
+            if requested_mode != self.access.mode:
+                label = "Modo Escola" if requested_mode == SCHOOL else "Modo Pessoal"
+                if not messagebox.askyesno(
+                    "Alterar perfil de acesso",
+                    "Ativar " + label + "? O JARVIS continuará respeitando as permissões da conta e do Windows. "
+                    "Essa opção não concede privilégios de administrador nem remove bloqueios da escola.",
+                    parent=win
+                ):
+                    mode_var.set(self.access.mode)
+                    return
+                self.access.set_mode(requested_mode)
+                self.config["access_mode"] = requested_mode
+                self.access_mode_state.set("PERFIL: " + requested_mode.upper())
             for key, entry in fields.items():
                 if key not in ("api_key",):
                     self.config[key] = entry.get().strip()
