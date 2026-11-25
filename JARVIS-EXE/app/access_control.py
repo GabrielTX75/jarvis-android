@@ -79,7 +79,7 @@ class AccessController:
                 "detail": str(detail)[:100] if detail else None,
             }
             with self.audit_path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(event, ensure_ascii=False) + "\\n")
+                stream.write(json.dumps(event, ensure_ascii=False) + "\n")
         except OSError:
             # Failure to write the optional audit log must not grant permissions.
             pass
