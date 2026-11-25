@@ -937,7 +937,7 @@ class JarvisApp:
             if messagebox.askyesno(
                 "Abrir no VS Code",
                 f"Projeto salvo. Deseja abrir '{name}' no Visual Studio Code?"
-            ):
+            ) and self.require_access("launch_app", "Code.exe") and self.require_access("workspace_open", project_path):
                 try:
                     open_in_vscode(project_path)
                     self.add("CONTROLE", f"VS Code aberto no projeto {name}.")
