@@ -7,7 +7,7 @@ from agents import names, system_instruction
 
 class AgentTests(unittest.TestCase):
     def test_all_specialists_have_instructions(self):
-        expected = {"Geral", "Pesquisa", "Programação", "Estudos", "Escrita", "Planejamento", "Análise", "Visão"}
+        expected = {"Geral", "Pesquisa", "Programação", "Flutter/Dart", "Estudos", "Escrita", "Planejamento", "Análise", "Visão"}
         self.assertEqual(set(names()), expected)
         for name in expected:
             self.assertIn("AGENTE ATIVO", system_instruction(name))
