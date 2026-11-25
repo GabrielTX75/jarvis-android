@@ -7,10 +7,16 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 from pathlib import Path
+from python_environment import (
+    EnvironmentInstallError,
+    install_package_in_project,
+    resolve_python_launcher,
+    validate_package_name,
+    validate_project_venv,
+)
 
 try:
     import pyautogui
@@ -78,7 +84,7 @@ class DesktopControlWindow:
         self._button(self.window, "Abrir Configurações do Windows", self.open_settings)
         self._button(self.window, "Abrir Gerenciador de Tarefas", self.open_task_manager)
         self._button(self.window, "Copiar ou mover arquivos…", self.copy_or_move)
-        self._button(self.window, "Instalar pacote Python (pip)…", self.install_python_package)
+        self._button(self.window, "Instalar pacote no ambiente Python do projeto…", self.install_python_package)
         self._button(self.window, "Instalar aplicativo pelo WinGet…", self.install_windows_package)
 
         tk.Label(self.window, text="MOUSE E TECLADO", bg="#071827", fg="#39d9ff",
@@ -203,28 +209,96 @@ class DesktopControlWindow:
     def install_python_package(self):
         if not self.authorize("install_dependency"):
             return
-        package = simpledialog.askstring("Instalar pacote Python", "Nome do pacote PyPI (somente nome):", parent=self.window)
+        package = simpledialog.askstring(
+            "Instalar pacote Python",
+            "Nome do pacote PyPI (somente nome, sem versão ou comando):",
+            parent=self.window
+        )
         if not package:
             return
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", package):
-            messagebox.showwarning("Nome inválido", "Informe apenas o nome de um pacote, sem URL, flags ou comandos.", parent=self.window)
-            return
-        if not self._confirm("Confirmar instalação", f"Instalar o pacote '{package}' usando pip no usuário atual?"):
-            return
         try:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--user", package],
-                shell=False, capture_output=True, text=True, timeout=300, check=False
+            package = validate_package_name(package)
+        except ValueError as exc:
+            messagebox.showwarning("Nome inválido", str(exc), parent=self.window)
+            return
+
+        default_dir = Path.home() / "Documents" / "JarvisProjects"
+        initial_dir = str(default_dir if default_dir.is_dir() else Path.home())
+        project = filedialog.askdirectory(
+            parent=self.window,
+            title="Escolha a pasta do projeto Python que receberá o ambiente .venv",
+            initialdir=initial_dir,
+            mustexist=True
+        )
+        if not project:
+            return
+        project_dir = Path(project).expanduser().resolve()
+        try:
+            venv_dir, interpreter = validate_project_venv(project_dir)
+        except ValueError as exc:
+            messagebox.showerror("Ambiente inválido", str(exc), parent=self.window)
+            return
+
+        launcher = resolve_python_launcher()
+        if not launcher:
+            messagebox.showerror(
+                "Python 3 não encontrado",
+                "O JARVIS EXE não inclui um interpretador Python instalável. "
+                "Instale Python 3 no Windows e habilite o launcher 'py' ou o comando 'python'. "
+                "Nenhuma alteração foi feita.",
+                parent=self.window
             )
-            output = (result.stdout + "\n" + result.stderr)[-5000:]
-            if result.returncode == 0:
-                self.on_log(f"Pacote Python instalado: {package}")
-                messagebox.showinfo("Instalação concluída", output[-2500:], parent=self.window)
-            else:
-                self.on_log(f"Falha ao instalar pacote Python: {package}")
-                messagebox.showerror("Falha na instalação", output, parent=self.window)
-        except Exception as exc:
-            messagebox.showerror("Instalação", str(exc), parent=self.window)
+            return
+
+        if venv_dir.exists() and not interpreter.is_file():
+            messagebox.showerror(
+                "Ambiente .venv incompleto",
+                "A pasta .venv já existe, mas não contém o interpretador esperado. "
+                "O JARVIS não vai sobrescrevê-la. Revise ou renomeie essa pasta manualmente.",
+                parent=self.window
+            )
+            return
+
+        create_needed = not venv_dir.exists()
+        action = (
+            f"Projeto: {project_dir}\n"
+            f"Pacote: {package}\n"
+            f"Ambiente: {venv_dir}\n"
+            + ("Será criado um ambiente virtual novo.\n" if create_needed else "O ambiente virtual existente será reutilizado.\n")
+            + "O pip poderá baixar e executar código de terceiros durante a instalação. "
+            "A instalação ficará isolada neste projeto e não será adicionada ao JARVIS.exe."
+        )
+        if not self._confirm("Confirmar instalação isolada", action):
+            return
+
+        try:
+            installed_venv, installed_interpreter = install_package_in_project(
+                project_dir, package, launcher
+            )
+            self.on_log(f"Pacote instalado no .venv do projeto: {package}")
+            messagebox.showinfo(
+                "Instalação concluída",
+                f"{package} foi instalado no ambiente:\n{installed_venv}\n\n"
+                "No VS Code, selecione o interpretador .venv\\Scripts\\python.exe "
+                "(Windows) para usar esse pacote.",
+                parent=self.window
+            )
+        except EnvironmentInstallError as exc:
+            self.on_log(f"Falha na instalação do pacote no .venv: {package}")
+            messagebox.showerror("Falha na instalação", str(exc), parent=self.window)
+        except subprocess.TimeoutExpired:
+            messagebox.showerror(
+                "Tempo esgotado",
+                "A criação do ambiente ou a instalação excedeu o limite de tempo. "
+                "Verifique o estado da pasta .venv antes de tentar novamente.",
+                parent=self.window
+            )
+        except OSError:
+            messagebox.showerror(
+                "Falha ao iniciar Python",
+                "O Windows não conseguiu iniciar o Python/pip. Verifique a instalação do Python 3.",
+                parent=self.window
+            )
 
     def install_windows_package(self):
         if not self.authorize("install_software"):

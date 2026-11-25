@@ -136,7 +136,7 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - Quando o usuário pede explicitamente a criação de um projeto/arquivos, a IA pode devolver um manifesto estruturado. O JARVIS pede confirmação, valida o nome e os caminhos e grava os arquivos dentro de `Documents/JarvisProjects`; em seguida, pergunta se deve abrir o projeto no VS Code.
 - O manifesto aceita até 40 arquivos, 500 KB por arquivo e 2 MB no total. Caminhos absolutos, travessia de diretórios, duplicatas e extensões executáveis comuns são recusados.
 - O conteúdo gerado **não é executado automaticamente**. O JARVIS agora oferece tarefas limitadas e confirmadas: `flutter analyze --no-pub`, `flutter test --no-pub`, `dart analyze`, compilação sintática Python e descoberta de testes Python. Testes executam código do projeto e exigem confirmação explícita.
-- O JARVIS não instala dependências automaticamente, não executa comandos livres do terminal e não aceita texto da IA como comando de shell. Se um SDK não estiver no PATH, informa a dependência ausente.
+- O JARVIS não executa comandos livres do terminal nem aceita texto da IA como comando de shell. No painel Controle avançado do Windows, o usuário pode instalar um pacote PyPI em um ambiente virtual `.venv` dentro de uma pasta de projeto escolhida; o JARVIS EXE não instala pacotes em seu próprio runtime empacotado.
 - É necessário ter o Visual Studio Code instalado no Windows. O JARVIS procura `Code.exe` nos locais padrão ou no PATH; se não encontrar, informa a dependência.
 - O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
 
@@ -150,7 +150,7 @@ O painel **Controle avançado do Windows** está disponível em Controle do comp
 - Abrir Configurações do Windows e Gerenciador de Tarefas.
 - Consultar processos em execução e solicitar o encerramento normal de um processo selecionado. Processos críticos e o próprio JARVIS são protegidos; não há encerramento forçado automático.
 - Controlar mouse e teclado na sessão visível: clique em coordenadas da tela, digitação na janela em foco e atalhos de uma lista permitida. O PyAutoGUI mantém o failsafe ativo; mover o mouse para o canto superior esquerdo interrompe suas ações.
-- Instalar pacote Python pelo nome do pacote usando pip install --user, sem URLs ou parâmetros arbitrários.
+- Instalar um pacote PyPI por nome validado em um `.venv` local à pasta de projeto escolhida. No EXE empacotado, exige Python 3 externo (`py` ou `python`); não altera o ambiente interno do JARVIS. O comando não usa shell e a instalação exige confirmação, pois pacotes de terceiros podem executar código.
 - Solicitar instalação de aplicativo por ID exato do WinGet. O instalador pode solicitar permissões próprias do Windows.
 
 **Limites deliberados:** não há terminal livre, execução arbitrária de PowerShell/CMD, elevação administrativa, acesso a credenciais, desativação de antivírus/firewall, persistência oculta ou contorno de políticas. Ações destrutivas e financeiras não são automatizadas. O painel não transforma o JARVIS em administrador do Windows: as permissões da conta, UAC, antivírus, ACLs e políticas da organização continuam valendo. O perfil Escola bloqueia todo esse painel avançado.
