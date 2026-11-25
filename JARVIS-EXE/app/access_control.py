@@ -47,7 +47,9 @@ class AccessController:
             return action in {
                 "launch_app", "workspace_read", "workspace_write",
                 "workspace_open", "capture_screen", "audit_folder",
-                "run_project_task", "browser",
+                "run_project_task", "browser", "desktop_control",
+                "mouse_keyboard", "process_terminate", "system_settings",
+                "install_dependency", "install_software",
             }
 
         # School profile is intentionally conservative and never elevates OS rights.
