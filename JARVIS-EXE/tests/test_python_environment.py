@@ -62,8 +62,10 @@ class PythonEnvironmentTests(unittest.TestCase):
 
     def test_venv_interpreter_path_is_platform_specific(self):
         with tempfile.TemporaryDirectory() as folder:
-            self.assertTrue(str(venv_interpreter_path(folder, True)).endswith("Scripts/python.exe"))
-            self.assertTrue(str(venv_interpreter_path(folder, False)).endswith("bin/python"))
+            windows_parts = venv_interpreter_path(folder, True).parts
+            unix_parts = venv_interpreter_path(folder, False).parts
+            self.assertEqual(windows_parts[-2:], ("Scripts", "python.exe"))
+            self.assertEqual(unix_parts[-2:], ("bin", "python"))
 
     def test_existing_venv_path_must_stay_inside_project(self):
         with tempfile.TemporaryDirectory() as folder:
