@@ -96,8 +96,8 @@ def create_generated_project(name, files):
 
 
 _TASKS = {
-    "flutter_analyze": ("flutter", "analyze"),
-    "flutter_test": ("flutter", "test"),
+    "flutter_analyze": ("flutter", "analyze", "--no-pub"),
+    "flutter_test": ("flutter", "test", "--no-pub"),
     "dart_analyze": ("dart", "analyze"),
     "python_compile": (sys.executable, "-m", "compileall", "-q", "."),
     "python_tests": (sys.executable, "-m", "unittest", "discover", "-s", "tests"),
@@ -109,6 +109,9 @@ def run_project_task(project_path, task, timeout=180):
     if task not in _TASKS:
         raise ValueError("Tarefa de validação não permitida.")
     folder = Path(project_path).expanduser().resolve()
+    workspace = ROOT.expanduser().resolve()
+    if workspace not in folder.parents:
+        raise ValueError("A validação só pode ser executada dentro da pasta de projetos do JARVIS.")
     if not folder.is_dir():
         raise FileNotFoundError("A pasta do projeto não existe.")
     command = list(_TASKS[task])
