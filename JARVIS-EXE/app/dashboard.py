@@ -28,7 +28,7 @@ from voice_session import run_continuous_session
 import keyring
 from desktop_tools import capture_screen, read_screen_text
 from project_workspace import create_project, write_project_file
-from vscode_integration import create_generated_project, open_in_vscode
+from vscode_integration import create_generated_project, open_in_vscode, run_project_task
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
@@ -105,6 +105,7 @@ class JarvisApp:
         self.agent_var = tk.StringVar(value="Geral")
         self.command_router = CommandRouter()
         self.command_router.register("vscode", self.try_vscode_command, priority=5)
+        self.command_router.register("project_tasks", self.try_project_task_command, priority=6)
         self.command_router.register("reminders", self.try_reminder_command, priority=10)
         self.command_router.register("browser", self.try_browser_command, priority=20)
         self.modules = ModuleRegistry()
@@ -844,6 +845,7 @@ class JarvisApp:
         actions = [
             ("Abrir Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
             ("Abrir Visual Studio Code", self.open_vscode_dialog),
+            ("Validar / testar projeto", self.project_task_dialog),
             ("Abrir Bloco de Notas", lambda: self.open_app("notepad.exe", "Bloco de Notas")),
             ("Abrir navegador", self.open_browser),
             ("Pesquisar na web", self.web_search),
@@ -923,6 +925,91 @@ class JarvisApp:
             return False
         self.open_vscode_dialog()
         return True
+
+    def try_project_task_command(self, prompt):
+        match = re.match(
+            r"^(?:jarvis[, ]*)?(analise|analisar|verifique|validar|teste|testar|rode|executar)\\s+(flutter|dart|python)\\s+(?:do\\s+projeto\\s+)?([A-Za-z0-9_-]{1,48})$",
+            prompt.strip(), re.I
+        )
+        if not match:
+            return False
+        verb, language, name = match.groups()
+        testing = verb.lower() in {"teste", "testar", "rode", "executar"}
+        language = language.lower()
+        if testing and language == "flutter":
+            task = "flutter_test"
+        elif testing and language == "python":
+            task = "python_tests"
+        elif testing:
+            self.add("JARVIS", "Para Dart, use 'analise dart NOME'. Testes Dart exigem configuração específica do projeto.")
+            return True
+        elif language == "flutter":
+            task = "flutter_analyze"
+        elif language == "dart":
+            task = "dart_analyze"
+        else:
+            task = "python_compile"
+        self._confirm_and_run_project_task(name, task)
+        return True
+
+    def project_task_dialog(self):
+        name = simpledialog.askstring("Validar projeto", "Nome da pasta do projeto:")
+        if not name or not re.fullmatch(r"[A-Za-z0-9_-]{1,48}", name):
+            return
+        kind = simpledialog.askstring(
+            "Tipo de validação",
+            "Digite: flutter (analisar), flutter-test, dart (analisar), python (compilar) ou python-test."
+        )
+        tasks = {
+            "flutter": "flutter_analyze", "flutter-test": "flutter_test",
+            "dart": "dart_analyze", "python": "python_compile",
+            "python-test": "python_tests"
+        }
+        task = tasks.get((kind or "").strip().lower())
+        if not task:
+            messagebox.showinfo("Validação", "Tipo não reconhecido.")
+            return
+        self._confirm_and_run_project_task(name, task)
+
+    def _confirm_and_run_project_task(self, name, task):
+        from project_workspace import ROOT
+        project_path = ROOT / name
+        description = {
+            "flutter_analyze": "flutter analyze (análise estática)",
+            "flutter_test": "flutter test (executa os testes do projeto)",
+            "dart_analyze": "dart analyze (análise estática)",
+            "python_compile": "compilação sintática Python",
+            "python_tests": "testes Python (executam o código de teste do projeto)"
+        }[task]
+        warning = (
+            "\\n\\nAtenção: testes executam código existente no projeto. "
+            "Só continue se você confia nos arquivos."
+            if task in {"flutter_test", "python_tests"} else ""
+        )
+        if not messagebox.askyesno(
+            "Confirmar validação",
+            f"Executar {description} em '{name}'?{warning}\\n"
+            "O JARVIS não instalará dependências automaticamente."
+        ):
+            return
+        self.status.set("VALIDANDO PROJETO")
+        threading.Thread(
+            target=self._project_task_worker, args=(project_path, name, task),
+            daemon=True
+        ).start()
+
+    def _project_task_worker(self, project_path, name, task):
+        try:
+            result = run_project_task(project_path, task)
+            output = (result.stdout or "") + (result.stderr or "")
+            if not output.strip():
+                output = "O comando terminou sem saída."
+            status = "SUCESSO" if result.returncode == 0 else f"ERRO (código {result.returncode})"
+            self.root.after(0, lambda: self.add("VALIDAÇÃO • " + status, f"{name}:\\n{output[:12000]}", result.returncode != 0))
+            self.root.after(0, lambda: self.status.set("PRONTO"))
+        except Exception as exc:
+            self.root.after(0, lambda: self.add("VALIDAÇÃO • ERRO", str(exc), True))
+            self.root.after(0, lambda: self.status.set("ERRO"))
 
     def open_app(self, exe, label):
         if not messagebox.askyesno("Autorizar ação", f"Permitir abrir {label}?"):
