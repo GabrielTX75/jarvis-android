@@ -879,7 +879,7 @@ class JarvisApp:
         count = len(files) if isinstance(files, list) else 0
         if not messagebox.askyesno(
             "Confirmar criação do projeto",
-            f"O JARVIS preparou {count} arquivo(s) para o projeto '{name}'.\\n"
+            f"O JARVIS preparou {count} arquivo(s) para o projeto '{name}'.\n"
             "Os arquivos serão gravados somente na pasta de projetos do JARVIS. "
             "Nenhum código será executado. Deseja continuar?"
         ):
@@ -917,7 +917,7 @@ class JarvisApp:
     def try_vscode_command(self, prompt):
         text = prompt.strip()
         if not re.match(
-            r"^(?:jarvis[, ]*)?(?:abra|abrir|abre|inicie|iniciar)\\s+(?:o\\s+)?(?:visual\\s+studio\\s+code|vs\\s*code)$",
+            r"^(?:jarvis[, ]*)?(?:abra|abrir|abre|inicie|iniciar)\s+(?:o\s+)?(?:visual\s+studio\s+code|vs\s*code)$",
             text, re.I
         ):
             return False
