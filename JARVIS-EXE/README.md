@@ -135,6 +135,7 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - O JARVIS reconhece comandos como **"abra o VS Code"** e pede confirmação antes de abrir o editor na pasta de projetos.
 - Quando o usuário pede explicitamente a criação de um projeto/arquivos, a IA pode devolver um manifesto estruturado. O JARVIS pede confirmação, valida o nome e os caminhos e grava os arquivos dentro de `Documents/JarvisProjects`; em seguida, pergunta se deve abrir o projeto no VS Code.
 - O manifesto aceita até 40 arquivos, 500 KB por arquivo e 2 MB no total. Caminhos absolutos, travessia de diretórios, duplicatas e extensões executáveis comuns são recusados.
-- O conteúdo gerado **não é executado automaticamente**. Instalar dependências, abrir terminais, executar scripts e compilar Flutter/Dart ainda não estão automatizados nesta integração.
+- O conteúdo gerado **não é executado automaticamente**. O JARVIS agora oferece tarefas limitadas e confirmadas: `flutter analyze`, `flutter test`, `dart analyze`, compilação sintática Python e descoberta de testes Python. Testes executam código do projeto e exigem confirmação explícita.
+- O JARVIS não instala dependências automaticamente, não executa comandos livres do terminal e não aceita texto da IA como comando de shell. Se um SDK não estiver no PATH, informa a dependência ausente.
 - É necessário ter o Visual Studio Code instalado no Windows. O JARVIS procura `Code.exe` nos locais padrão ou no PATH; se não encontrar, informa a dependência.
 - O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
