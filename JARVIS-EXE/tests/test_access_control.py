@@ -17,6 +17,11 @@ class AccessControllerTests(unittest.TestCase):
             self.assertTrue(access.check("launch_app", "Code.exe"))
             self.assertTrue(access.check("capture_screen"))
             self.assertTrue(access.check("audit_folder", temp))
+            self.assertTrue(access.check("desktop_control"))
+            self.assertTrue(access.check("mouse_keyboard"))
+            self.assertTrue(access.check("process_terminate"))
+            self.assertTrue(access.check("install_dependency"))
+            self.assertTrue(access.check("install_software"))
             self.assertFalse(access.check("admin_elevation"))
 
     def test_school_profile_is_limited_to_workspace_and_allowlisted_apps(self):
@@ -34,6 +39,11 @@ class AccessControllerTests(unittest.TestCase):
             self.assertTrue(access.check("run_project_task", project, "flutter_analyze"))
             self.assertFalse(access.check("run_project_task", project, "python_tests"))
             self.assertFalse(access.check("capture_screen"))
+            self.assertFalse(access.check("desktop_control"))
+            self.assertFalse(access.check("mouse_keyboard"))
+            self.assertFalse(access.check("process_terminate"))
+            self.assertFalse(access.check("install_dependency"))
+            self.assertFalse(access.check("install_software"))
             self.assertFalse(access.check("audit_folder", outside))
             self.assertTrue(access.check("audit_folder", project))
             self.assertFalse(access.check("admin_elevation"))
