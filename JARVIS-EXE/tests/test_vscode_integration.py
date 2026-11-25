@@ -56,5 +56,23 @@ class VscodeIntegrationTests(unittest.TestCase):
             self.assertFalse(kwargs["shell"])
 
 
+    def test_project_task_is_allowlisted_and_uses_no_shell(self):
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(vscode_integration.shutil, "which", return_value="C:/Flutter/bin/flutter.bat"), \
+             patch.object(vscode_integration.subprocess, "run") as runner:
+            runner.return_value = __import__("subprocess").CompletedProcess(
+                ["flutter", "analyze"], 0, "No issues found", ""
+            )
+            result = vscode_integration.run_project_task(temp, "flutter_analyze")
+            self.assertEqual(result.returncode, 0)
+            args, kwargs = runner.call_args
+            self.assertEqual(args[0], ["C:/Flutter/bin/flutter.bat", "analyze"])
+            self.assertFalse(kwargs["shell"])
+
+    def test_project_task_rejects_arbitrary_commands(self):
+        with self.assertRaises(ValueError):
+            vscode_integration.run_project_task(".", "arbitrary_shell")
+
+
 if __name__ == "__main__":
     unittest.main()
