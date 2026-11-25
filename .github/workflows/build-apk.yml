@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release != true || github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -49,18 +50,11 @@ jobs:
           mv /tmp/vosk-pt/vosk-model-small-pt-0.3 app/src/main/assets/model-pt
           echo "vosk-model-small-pt-0.3" > app/src/main/assets/model-pt/uuid
 
-      - name: Validar sintaxe JavaScript do app
-        run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
-          html = Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
-          if not scripts:
-              raise SystemExit("Nenhum script inline encontrado")
-          Path("/tmp/jarvis-inline.js").write_text("\n".join(scripts), encoding="utf-8")
-          PY
-          node --check /tmp/jarvis-inline.js
+      - name: Auditar segurança da WebView e do transporte de IA
+        run: python3 tools/verify_webview_security.py
+
+      - name: Validar sintaxe do JavaScript local
+        run: node --check app/src/main/assets/app.js
 
       - name: Executar testes unitários
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
@@ -74,21 +68,48 @@ jobs:
           name: JARVIS-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   publish:
     name: Publicar Release manual
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main'
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Baixar APK validado pelo job de build
-        uses: actions/download-artifact@v4
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
         with:
-          name: JARVIS-APK
-          path: release
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar Gradle 8.10
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10"
+
+      - name: Auditar segurança da WebView e do transporte de IA
+        run: python3 tools/verify_webview_security.py
+
+      - name: Validar sintaxe do JavaScript local
+        run: node --check app/src/main/assets/app.js
+
+      - name: Baixar o modelo de voz em português
+        run: |
+          mkdir -p app/src/main/assets
+          curl --retry 3 --retry-delay 2 -fsSL -o /tmp/vosk-pt.zip https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
+          unzip -q /tmp/vosk-pt.zip -d /tmp/vosk-pt
+          mv /tmp/vosk-pt/vosk-model-small-pt-0.3 app/src/main/assets/model-pt
+          echo "vosk-model-small-pt-0.3" > app/src/main/assets/model-pt/uuid
+
+      - name: Executar testes unitários
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Compilar APK de depuração
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Publicar APK na Release
         uses: softprops/action-gh-release@v2
@@ -100,6 +121,6 @@ jobs:
             Este arquivo serve para validação/instalação de teste; não é um instalador de produção assinado.
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-          files: release/*.apk
+          files: app/build/outputs/apk/debug/*.apk
           fail_on_unmatched_files: true
           make_latest: true

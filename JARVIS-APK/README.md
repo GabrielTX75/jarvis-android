@@ -51,3 +51,10 @@ Este diretório é a organização-alvo. A implementação existente ainda preci
 - O botão de apagar remove as quatro credenciais de API e a chave legada da IA; a opção de redefinir o cofre continua apagando também o PIN do cofre.
 - A chave Groq continua compatível com o campo de IA existente. As chaves Gemini, Tavily e brapi são armazenadas e testáveis; a integração funcional de cada serviço com os módulos de IA/pesquisa/finanças é uma etapa separada.
 - O cofre e a memória são locais a este APK/aparelho. Não haverá sincronização automática com Windows ou outros dispositivos.
+
+
+## Evolução 09 — IA nativa e isolamento da WebView
+
+No APK, a interface envia as mensagens ao bridge nativo, mas não recebe a chave da IA. O Kotlin consulta o endpoint e o modelo salvos no Android, lê a chave do `EncryptedSharedPreferences` e faz a chamada HTTPS diretamente. A URL remota completa precisa ser aprovada em um diálogo nativo; HTTP é aceito somente em localhost/127.0.0.1. O transporte recusa redirecionamentos e limita contexto, resposta, concorrência e tempo.
+
+A interface visual foi preservada. O JavaScript agora é um arquivo local `app.js`, protegido por CSP sem scripts inline/remotos. A entrada da chave ainda passa temporariamente pelo JavaScript do campo; uma entrada nativa e um gateway HTTPS são melhorias futuras. Não há teste físico no Galaxy A06 nesta etapa.

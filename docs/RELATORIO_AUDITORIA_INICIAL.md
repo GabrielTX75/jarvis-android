@@ -66,3 +66,9 @@ A classe `PedirCapturaActivity` **existe** dentro de `NucleoJarvis.kt`. A declar
 - Build/execução real: NÃO TESTADO.
 - APK de produção: NÃO PRONTO.
 - Correções de código: ainda não iniciadas nesta branch; esta branch contém documentação de especificação e auditoria.
+
+
+## Reauditoria de segurança — 25/11/2026
+A implementação inicial da branch de trabalho agora inclui CSP, restrição da origem privilegiada da WebView, transporte nativo de IA e aprovação da URL remota completa. A chave de IA deixou de ser retornada por `getSecret`; a interface recebe apenas um booleano de presença. Consulte `SECURITY_AUDIT_WEBVIEW.md` e `tools/verify_webview_security.py` para os controles e verificações automatizadas.
+
+O relatório inicial continua descrevendo a fotografia da branch `main` auditada originalmente. A reauditoria não substitui build, teste instrumentado ou validação física no Galaxy A06.

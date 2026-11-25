@@ -15,14 +15,23 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.CookieManager
 import android.net.Uri
 import android.provider.Settings
 import android.os.Environment
 import java.io.File
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -31,6 +40,7 @@ import java.util.Locale
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
+import org.json.JSONArray
 
 class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListener {
     private var pendingWake = false
@@ -45,14 +55,23 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private var pendingPermissionStart = false
     private var listening = false
     private var lastUtteranceId = ""
+    @Volatile private var aiConfigPromptOpen = false
+    @Volatile private var callbacksEnabled = true
+
+    private class AiRequest {
+        val cancelled = AtomicBoolean(false)
+        @Volatile var connection: HttpURLConnection? = null
+    }
+
+    private val aiExecutor = Executors.newFixedThreadPool(2)
+    private val aiRequests = ConcurrentHashMap<String, AiRequest>()
 
     companion object {
         private const val REQ_AUDIO = 4102
         private const val REQ_NOTIF = 4103
+        private const val APP_HOST = "appassets.androidplatform.net"
+        private const val APP_URL = "https://appassets.androidplatform.net/assets/index.html"
         private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "gemini_key", "tavily_key", "brapi_key", "pin_hash", "picovoice_key")
-        // Somente os valores que a interface web realmente precisa ler.
-        // Gemini, Tavily, brapi e Picovoice são consumidos por código nativo.
-        private val JS_READABLE_SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "pin_hash")
     }
 
     private val secretPrefs by lazy {
@@ -76,35 +95,70 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             .build()
 
         webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = false
-        webView.settings.allowContentAccess = false
-        webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        webView.settings.javaScriptCanOpenWindowsAutomatically = false
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            safeBrowsingEnabled = true
+        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
         webView.addJavascriptInterface(NativeBridge(), "JarvisAndroid")
         webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
-                assetLoader.shouldInterceptRequest(request.url)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val uri = request.url
+                if (uri.host?.equals(APP_HOST, ignoreCase = true) == true) {
+                    if (!isTrustedAssetOrigin(uri)) return notFoundResponse()
+                    return assetLoader.shouldInterceptRequest(uri) ?: notFoundResponse()
+                }
+                return null
+            }
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (
-                    uri.scheme == "https" &&
-                    uri.host == "appassets.androidplatform.net" &&
-                    uri.port == -1 &&
-                    uri.userInfo == null
-                ) return false
-                if (uri.scheme == "https" || uri.scheme == "http") {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    return true
+                if (isAppDocument(uri)) return false
+                if (isTrustedAssetOrigin(uri)) return true
+                if (uri.scheme == "https") {
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        true
+                    } catch (_: Exception) {
+                        true
+                    }
                 }
                 return true
             }
         }
         setContentView(webView)
-        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+        webView.loadUrl(APP_URL)
     }
+
+    private fun isTrustedAssetOrigin(uri: Uri): Boolean =
+        uri.scheme == "https" &&
+            uri.host?.equals(APP_HOST, ignoreCase = true) == true &&
+            uri.userInfo == null &&
+            (uri.port == -1 || uri.port == 443)
+
+    private fun isAppDocument(uri: Uri): Boolean =
+        isTrustedAssetOrigin(uri) &&
+            uri.path == "/assets/index.html" &&
+            uri.query == null &&
+            uri.fragment == null
+
+    private fun notFoundResponse(): WebResourceResponse =
+        WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            404,
+            "Not Found",
+            emptyMap(),
+            ByteArrayInputStream(ByteArray(0))
+        )
 
     inner class NativeBridge {
         @JavascriptInterface fun scheduleReminder(title: String, eventTimeMillis: Long): String {
@@ -211,9 +265,19 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }
         }
         @JavascriptInterface fun getSecret(name: String): String {
-            // Não exponha à camada JavaScript chaves que só precisam ser usadas no Kotlin.
-            if (name !in JS_READABLE_SECRET_NAMES) return ""
+            // A chave da IA é lida apenas pelo transporte nativo; nunca retorna ao JavaScript.
+            if (name !in SECRET_NAMES || name == "ai_key" || name == "groq_key") return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
+        }
+        @JavascriptInterface fun hasSecret(name: String): Boolean {
+            if (name !in SECRET_NAMES) return false
+            return try { !secretPrefs.getString(name, "").isNullOrBlank() } catch (_: Exception) { false }
+        }
+        @JavascriptInterface fun requestAI(messagesJson: String, requestId: String) {
+            submitAiRequest(messagesJson, requestId)
+        }
+        @JavascriptInterface fun cancelAI(requestId: String) {
+            cancelAiRequest(requestId)
         }
 
         @JavascriptInterface fun testApi(name: String): String {
@@ -299,12 +363,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }.start()
         }
         @JavascriptInterface fun salvarWpp(auto: Boolean, nome: String, endpoint: String, model: String) {
-            getSharedPreferences("jarvis_wpp", MODE_PRIVATE).edit()
-                .putBoolean("auto", auto)
-                .putString("nome", nome.take(60))
-                .putString("endpoint", endpoint.take(300))
-                .putString("model", model.take(120))
-                .apply()
+            configureWppAndAiEndpoint(auto, nome, endpoint, model)
         }
         @JavascriptInterface fun picovoiceConfigurada(): Boolean = Cofre.ler(this@MainActivity, "picovoice_key").isNotEmpty()
         @JavascriptInterface fun ouvirSegundoPlanoAtivo(): Boolean = ouvirAtivo()
@@ -389,6 +448,252 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         }
     }
 
+    private fun configureWppAndAiEndpoint(auto: Boolean, nome: String, endpoint: String, model: String) {
+        val prefs = getSharedPreferences("jarvis_wpp", MODE_PRIVATE)
+        prefs.edit().putBoolean("auto", auto).putString("nome", nome.take(60)).apply()
+        val currentEndpoint = prefs.getString("endpoint", "") ?: ""
+        val currentModel = prefs.getString("model", "") ?: ""
+        val candidate = endpoint.trim()
+        val cleanModel = model.trim()
+
+        fun notifyConfig(ok: Boolean, savedEndpoint: String, savedModel: String, message: String) {
+            val args = ok.toString() + ", " + JSONObject.quote(savedEndpoint.take(2048)) + ", " +
+                JSONObject.quote(savedModel.take(120)) + ", " + JSONObject.quote(message.take(240))
+            js("jarvisNativeAiConfigResult", args)
+        }
+        if (candidate.isBlank() || candidate.length > 2048 || cleanModel.isBlank() ||
+            cleanModel.length > 120 || cleanModel.any { Character.isISOControl(it) }) {
+            notifyConfig(false, currentEndpoint, currentModel, "Endpoint ou modelo inválido.")
+            return
+        }
+        val validatedEndpoint = AiEndpointPolicy.validate(candidate)
+        if (validatedEndpoint == null) {
+            notifyConfig(false, currentEndpoint, currentModel,
+                "Endpoint inválido. Use HTTPS remoto ou HTTP somente em localhost/127.0.0.1, sem usuário, senha, query ou fragmento.")
+            return
+        }
+        val normalizedEndpoint = validatedEndpoint.normalized
+        fun saveConfig() {
+            prefs.edit().putString("endpoint", normalizedEndpoint).putString("model", cleanModel).apply()
+            notifyConfig(true, normalizedEndpoint, cleanModel, "Servidor de IA configurado.")
+        }
+        if (validatedEndpoint.local) {
+            try { secretPrefs.edit().remove("ai_approved_origin").remove("ai_approved_endpoint").apply() } catch (_: Exception) {}
+            saveConfig()
+            return
+        }
+        val approvedEndpoint = try { secretPrefs.getString("ai_approved_endpoint", "") ?: "" } catch (_: Exception) { "" }
+        if (approvedEndpoint == normalizedEndpoint) {
+            saveConfig()
+            return
+        }
+        if (aiConfigPromptOpen) return
+        aiConfigPromptOpen = true
+        runOnUiThread {
+            try {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Autorizar servidor de IA")
+                    .setMessage("O JARVIS enviará suas mensagens e a chave da IA para " + validatedEndpoint.display +
+                        ". Só autorize se você confia nesse endpoint completo.")
+                    .setPositiveButton("Autorizar") { _, _ ->
+                        aiConfigPromptOpen = false
+                        val saved = try {
+                            secretPrefs.edit().putString("ai_approved_endpoint", normalizedEndpoint)
+                                .remove("ai_approved_origin").commit()
+                        } catch (_: Exception) { false }
+                        if (saved) saveConfig()
+                        else notifyConfig(false, currentEndpoint, currentModel, "Não foi possível salvar a autorização do servidor.")
+                    }
+                    .setNegativeButton("Cancelar") { _, _ ->
+                        aiConfigPromptOpen = false
+                        notifyConfig(false, currentEndpoint, currentModel, "Alteração do servidor cancelada.")
+                    }
+                    .setOnCancelListener {
+                        aiConfigPromptOpen = false
+                        notifyConfig(false, currentEndpoint, currentModel, "Alteração do servidor cancelada.")
+                    }
+                    .show()
+            } catch (_: Exception) {
+                aiConfigPromptOpen = false
+                notifyConfig(false, currentEndpoint, currentModel, "Não foi possível confirmar o servidor.")
+            }
+        }
+    }
+
+    private fun submitAiRequest(messagesJson: String, requestId: String) {
+        val id = requestId.take(80)
+        if (!Regex("^[A-Za-z0-9_-]{1,80}$").matches(id)) {
+            nativeAiResult(id, false, "", "", "Identificador de requisição inválido.")
+            return
+        }
+        if (messagesJson.length > 400_000) {
+            nativeAiResult(id, false, "", "", "A solicitação ultrapassou o limite permitido.")
+            return
+        }
+        if (aiRequests.size >= 4) {
+            nativeAiResult(id, false, "", "", "O JARVIS já está processando outras solicitações.")
+            return
+        }
+        val pending = AiRequest()
+        if (aiRequests.putIfAbsent(id, pending) != null) {
+            nativeAiResult(id, false, "", "", "Identificador de requisição repetido.")
+            return
+        }
+        try { aiExecutor.execute { performAiRequest(id, pending, messagesJson) } }
+        catch (_: Exception) {
+            aiRequests.remove(id, pending)
+            nativeAiResult(id, false, "", "", "Não foi possível iniciar a solicitação à IA.")
+        }
+    }
+
+    private fun cancelAiRequest(requestId: String) {
+        val id = requestId.take(80)
+        aiRequests[id]?.let {
+            it.cancelled.set(true)
+            try { it.connection?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    private fun readBounded(input: java.io.InputStream, limit: Int): String {
+        input.use {
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val count = it.read(buffer)
+                if (count < 0) break
+                total += count
+                if (total > limit) throw IOException("O conteúdo ultrapassou o limite permitido.")
+                output.write(buffer, 0, count)
+            }
+            return output.toString("UTF-8")
+        }
+    }
+
+    private fun performAiRequest(id: String, pending: AiRequest, messagesJson: String) {
+        var connection: HttpURLConnection? = null
+        try {
+            if (pending.cancelled.get()) return
+            val prefs = getSharedPreferences("jarvis_wpp", MODE_PRIVATE)
+            val endpoint = prefs.getString("endpoint", "")?.trim().orEmpty()
+            val model = prefs.getString("model", "")?.trim().orEmpty()
+            if (endpoint.isBlank() || model.isBlank() || model.length > 120) {
+                throw IllegalArgumentException("Configure o endereço e o modelo da IA.")
+            }
+            val validatedEndpoint = AiEndpointPolicy.validate(endpoint)
+                ?: throw IllegalArgumentException("O endereço da IA não passou pela validação de segurança.")
+            if (validatedEndpoint.normalized != endpoint) {
+                throw IllegalArgumentException("Reconfigure o endpoint da IA para confirmar seu endereço normalizado.")
+            }
+            if (!validatedEndpoint.local) {
+                val approved = try { secretPrefs.getString("ai_approved_endpoint", "") ?: "" } catch (_: Exception) { "" }
+                if (approved != validatedEndpoint.normalized) {
+                    throw IllegalArgumentException("Confirme o endpoint completo da IA nas configurações.")
+                }
+            }
+            val messages = try { JSONArray(messagesJson) } catch (_: Exception) {
+                throw IllegalArgumentException("Formato das mensagens inválido.")
+            }
+            if (messages.length() !in 1..60) throw IllegalArgumentException("Quantidade de mensagens inválida.")
+            var totalChars = 0
+            for (index in 0 until messages.length()) {
+                val item = messages.optJSONObject(index) ?: throw IllegalArgumentException("Formato de mensagem inválido.")
+                if (item.optString("role") !in setOf("system", "user", "assistant")) {
+                    throw IllegalArgumentException("Papel de mensagem não permitido.")
+                }
+                val content = item.opt("content") as? String
+                    ?: throw IllegalArgumentException("O conteúdo das mensagens deve ser texto.")
+                totalChars += content.length
+                if (totalChars > 300_000) throw IllegalArgumentException("O contexto ultrapassou o limite permitido.")
+            }
+            val body = JSONObject().put("model", model).put("messages", messages)
+                .put("max_completion_tokens", 8192).put("stream", false)
+            val bodyBytes = body.toString().toByteArray(Charsets.UTF_8)
+            if (bodyBytes.size > 1_000_000) throw IllegalArgumentException("A solicitação ultrapassou o limite de tamanho.")
+
+            connection = URL(validatedEndpoint.normalized).openConnection() as? HttpURLConnection
+                ?: throw IllegalArgumentException("Tipo de conexão não permitido.")
+            pending.connection = connection
+            if (pending.cancelled.get()) return
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 180_000
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.setRequestProperty("Accept", "application/json")
+            val apiKey = try {
+                val primary = secretPrefs.getString("ai_key", "") ?: ""
+                if (primary.isNotBlank()) primary else secretPrefs.getString("groq_key", "") ?: ""
+            } catch (_: Exception) { "" }
+            if (apiKey.isNotBlank()) connection.setRequestProperty("Authorization", "Bearer " + apiKey)
+            connection.outputStream.use { it.write(bodyBytes) }
+            if (pending.cancelled.get()) return
+            val status = connection.responseCode
+            if (status in 300..399) throw IllegalArgumentException("O servidor redirecionou a solicitação. Configure o endereço final.")
+            if (status !in 200..299) {
+                val detail = try {
+                    val errorText = connection.errorStream?.let { readBounded(it, 64_000) }.orEmpty()
+                    val errorJson = JSONObject(errorText)
+                    errorJson.optJSONObject("error")?.optString("message", "")
+                        ?.ifBlank { errorJson.optString("message", "") }.orEmpty()
+                } catch (_: Exception) { "" }
+                val safeDetail = detail.filter { !Character.isISOControl(it) }.take(180)
+                throw IllegalArgumentException("Servidor de IA respondeu HTTP " + status +
+                    if (safeDetail.isNotBlank()) ": " + safeDetail else ".")
+            }
+            val responseText = readBounded(connection.inputStream, 2_000_000)
+            val response = try { JSONObject(responseText) } catch (_: Exception) {
+                throw IllegalArgumentException("A resposta do servidor não é um JSON válido.")
+            }
+            val first = response.optJSONArray("choices")?.optJSONObject(0)
+                ?: throw IllegalArgumentException("O servidor não retornou uma resposta compatível.")
+            val message = first.optJSONObject("message")
+                ?: throw IllegalArgumentException("A resposta do servidor não contém uma mensagem.")
+            val rawContent = message.opt("content")
+            val answer = when (rawContent) {
+                is String -> rawContent
+                is JSONArray -> buildString {
+                    for (index in 0 until rawContent.length()) {
+                        when (val part = rawContent.opt(index)) {
+                            is String -> append(part)
+                            is JSONObject -> append(part.optString("text", ""))
+                        }
+                    }
+                }
+                else -> ""
+            }
+            if (answer.isBlank()) throw IllegalArgumentException("O modelo não retornou texto.")
+            val finishReason = first.optString("finish_reason", "stop").take(40).ifBlank { "stop" }
+            if (!pending.cancelled.get()) nativeAiResult(id, true, answer, finishReason, null)
+        } catch (_: SocketTimeoutException) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", "", "A IA demorou mais de 180 segundos para responder.")
+        } catch (e: IllegalArgumentException) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", "", e.message ?: "Configuração da IA inválida.")
+        } catch (_: Exception) {
+            if (!pending.cancelled.get()) nativeAiResult(id, false, "", "", "Não foi possível concluir a solicitação à IA.")
+        } finally {
+            try { connection?.disconnect() } catch (_: Exception) {}
+            pending.connection = null
+            aiRequests.remove(id, pending)
+        }
+    }
+
+    private fun nativeAiResult(id: String, ok: Boolean, text: String, finishReason: String, error: String?) {
+        val errorArg = if (error == null) "null" else JSONObject.quote(error.take(240))
+        val args = JSONObject.quote(id) + ", " + ok + ", " +
+            JSONObject.quote(text.take(300_000)) + ", " + JSONObject.quote(finishReason.take(40)) + ", " + errorArg
+        js("jarvisNativeAIResult", args)
+    }
+
+    private fun cancelAllAiRequests(reason: String?) {
+        for ((id, request) in aiRequests.entries.toList()) {
+            request.cancelled.set(true)
+            try { request.connection?.disconnect() } catch (_: Exception) {}
+            if (reason != null) nativeAiResult(id, false, "", "", reason)
+        }
+    }
+
     private fun actionResult(requestId: String, ok: Boolean, message: String) {
         val id = org.json.JSONObject.quote(requestId.take(80))
         val msg = org.json.JSONObject.quote(message.take(240))
@@ -396,8 +701,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     private fun js(name: String, args: String) {
-        if (!::webView.isInitialized) return
-        runOnUiThread { webView.evaluateJavascript("window.$name($args)", null) }
+        if (!callbacksEnabled || !::webView.isInitialized || isFinishing) return
+        runOnUiThread {
+            if (callbacksEnabled && ::webView.isInitialized) {
+                webView.evaluateJavascript("window." + name + "(" + args + ")", null)
+            }
+        }
     }
 
     private fun beginListening() {
@@ -547,7 +856,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         JarvisOuvidoService.telaAtiva(true)
         if (pendingWake && ::webView.isInitialized) { pendingWake = false; js("jarvisWake", "") }
     }
-    override fun onPause() { stopRecognition(); JarvisOuvidoService.telaAtiva(false); super.onPause() }
+    override fun onPause() {
+        cancelAllAiRequests("Consulta interrompida porque o JARVIS foi para segundo plano.")
+        stopRecognition()
+        JarvisOuvidoService.telaAtiva(false)
+        super.onPause()
+    }
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         if (intent?.getBooleanExtra("wake", false) == true && ::webView.isInitialized) js("jarvisWake", "")
@@ -562,6 +876,10 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     }
 
     override fun onDestroy() {
+        callbacksEnabled = false
+        cancelAllAiRequests(null)
+        aiExecutor.shutdownNow()
+        aiRequests.clear()
         stopRecognition()
         tts?.stop(); tts?.shutdown(); tts = null
         if (::webView.isInitialized) { webView.removeJavascriptInterface("JarvisAndroid"); webView.destroy() }

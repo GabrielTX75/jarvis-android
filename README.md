@@ -112,7 +112,7 @@ A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identida
 - Conteúdo de telas, páginas, notificações, documentos e mensagens é tratado no prompt como dado não confiável, nunca como instrução privilegiada.
 - A ponte JavaScript não pode mais ler as chaves Gemini, Tavily, brapi ou Picovoice. A leitura pela interface fica limitada aos valores usados pelos fluxos atuais (Groq/IA, busca e PIN).
 - O endpoint de IA é validado antes do envio: HTTPS é obrigatório para servidores remotos; HTTP só é aceito em `localhost`/`127.0.0.1`, e URLs com usuário/senha embutidos são recusadas. A regra também vale para as chamadas nativas do núcleo e do respondedor do WhatsApp.
-- **Limitação ainda existente:** a chave Groq/IA necessária à chamada compatível continua sendo lida pela interface e fica em memória JavaScript durante a requisição. Para distribuição pública, a arquitetura correta continua sendo um gateway HTTPS no backend; não embutir nem compartilhar chaves no APK.
+- **Evolução 09:** o transporte de IA do APK foi movido para Kotlin. `getSecret("ai_key")` e `getSecret("groq_key")` não devolvem a chave à WebView; o segredo é lido no armazenamento criptografado e enviado pelo cabeçalho Authorization. A chave ainda passa temporariamente pelo JavaScript quando é digitada no campo da interface; uma entrada nativa e um backend HTTPS continuam sendo melhorias futuras para distribuição pública.
 
 ## CI Android — artefato separado de publicação
 
@@ -120,3 +120,17 @@ A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identida
 - O workflow não publica mais uma Release a cada push nem concede permissão de escrita ao job de build.
 - Publicação da Release `apk-latest` exige execução manual do workflow, opção `publish_release=true` e branch `main`.
 - O arquivo publicado por esse fluxo é um APK de depuração para validação, não um instalador de produção assinado.
+
+
+## Evolução 09 — isolamento da WebView e transporte nativo da IA
+
+- A WebView só aceita o documento empacotado `/assets/index.html` na origem HTTPS local. Recursos ausentes nessa origem recebem 404 local; outras páginas dessa origem não podem navegar dentro da WebView privilegiada.
+- Links externos só abrem no navegador do sistema quando usam HTTPS. HTTP externo e esquemas personalizados são bloqueados como navegação.
+- O JavaScript foi extraído sem alterar a interface para `app/src/main/assets/app.js`. A CSP permite scripts somente da origem empacotada, bloqueia frames/objetos e impede scripts remotos. Estilos inline foram mantidos por compatibilidade com a interface existente.
+- No APK, a chave de IA não é mais lida pelo JavaScript. A ponte oferece apenas o estado booleano `hasSecret`; o transporte nativo lê `ai_key` (ou a chave legada `groq_key`) do cofre criptografado.
+- O endpoint é normalizado e validado. HTTPS remoto exige aprovação nativa para a URL completa; HTTP só é aceito em localhost/127.0.0.1. Credenciais embutidas, query, fragmento e redirecionamentos são recusados.
+- O transporte limita tamanho do contexto/resposta, número de solicitações pendentes e tempo de rede; cancelamento desconecta a requisição. A lógica de continuação de respostas longas permanece na interface.
+- O workflow agora executa auditoria estática da WebView, verificação de sintaxe do JavaScript, testes unitários e compilação. Artefatos temporários ficam retidos por 1 dia. A publicação manual na `main` recompila o APK e não depende do armazenamento de artifacts do Actions.
+- Limitação residual: a chave ainda é digitada em um campo da WebView e passa transitoriamente pelo JavaScript para ser salva. A ponte `addJavascriptInterface` permanece para ferramentas legadas; migrá-la para `WebMessageListener` com origem/frame principal validados é uma etapa futura.
+
+**Validação física:** esta evolução ainda precisa ser instalada e testada no Galaxy A06. Build em CI não substitui teste de microfone, voz, consumo, permissões e rede no aparelho.
