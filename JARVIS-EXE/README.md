@@ -139,3 +139,14 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - O JARVIS não instala dependências automaticamente, não executa comandos livres do terminal e não aceita texto da IA como comando de shell. Se um SDK não estiver no PATH, informa a dependência ausente.
 - É necessário ter o Visual Studio Code instalado no Windows. O JARVIS procura `Code.exe` nos locais padrão ou no PATH; se não encontrar, informa a dependência.
 - O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
+
+
+## Perfis de acesso ao computador
+
+O JARVIS EXE possui dois perfis configuráveis em **Configurações > Perfil de acesso ao computador**:
+
+- **Pessoal:** libera as ações locais que o JARVIS já implementa, sempre com confirmações para abrir aplicativos, criar arquivos, capturar tela, auditar pastas ou executar tarefas de projeto. Não significa shell irrestrito, elevação de administrador ou acesso oculto.
+- **Escola:** perfil restrito para uso em computadores da instituição. Limita a abertura de aplicativos a uma lista básica (VS Code, Bloco de Notas e Calculadora), restringe leitura/escrita/abertura de projetos à pasta `Documents/JarvisProjects`, permite somente análises estáticas aprovadas e navegação sujeita aos filtros da rede. Bloqueia captura de tela, auditoria fora da pasta de projetos, execução de testes de código, instalação de dependências e ações administrativas.
+- **Registro:** decisões de permissão são registradas em `%APPDATA%/Jarvis/access_audit.jsonl`, sem guardar caminhos completos de arquivos.
+- **Limite fundamental:** esses perfis são controles internos do aplicativo, não uma sandbox nem um substituto das políticas de TI. A conta do Windows, permissões NTFS, UAC, antivírus, filtros de rede e gerenciamento da escola continuam mandando. O JARVIS não tenta elevar privilégios nem contornar restrições impostas pela instituição.
+- **Ainda não implementado:** controle genérico de mouse/teclado, leitura ampla de qualquer janela, execução arbitrária de comandos, instalação automática de dependências e acesso irrestrito a todo o disco. Essas capacidades precisam de fluxos próprios, escopo visível, confirmação e testes antes de serem anunciadas.
