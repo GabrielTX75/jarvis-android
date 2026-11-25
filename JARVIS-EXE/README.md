@@ -129,3 +129,12 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - **Cofre:** Configurações > Cofre de APIs. Windows Credential Manager via keyring. Campos vazios preservam credenciais; apagar credenciais remove Groq, Gemini, Tavily e brapi.
 - **Sem sincronização de memória ou credenciais:** configurações, lembretes e memória ficam locais. APK e EXE mantêm dados e cofres separados.
 - **Testes:** `python -m unittest discover -s JARVIS-EXE/tests -v`. Testes de API usam respostas simuladas; não validam disponibilidade externa nem substituem testes reais com as chaves do usuário.
+
+## Integração de projetos com Visual Studio Code
+
+- O JARVIS reconhece comandos como **"abra o VS Code"** e pede confirmação antes de abrir o editor na pasta de projetos.
+- Quando o usuário pede explicitamente a criação de um projeto/arquivos, a IA pode devolver um manifesto estruturado. O JARVIS pede confirmação, valida o nome e os caminhos e grava os arquivos dentro de `Documents/JarvisProjects`; em seguida, pergunta se deve abrir o projeto no VS Code.
+- O manifesto aceita até 40 arquivos, 500 KB por arquivo e 2 MB no total. Caminhos absolutos, travessia de diretórios, duplicatas e extensões executáveis comuns são recusados.
+- O conteúdo gerado **não é executado automaticamente**. Instalar dependências, abrir terminais, executar scripts e compilar Flutter/Dart ainda não estão automatizados nesta integração.
+- É necessário ter o Visual Studio Code instalado no Windows. O JARVIS procura `Code.exe` nos locais padrão ou no PATH; se não encontrar, informa a dependência.
+- O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
