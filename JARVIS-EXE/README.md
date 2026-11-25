@@ -141,12 +141,25 @@ O JARVIS EXE possui uma janela própria de navegação baseada em WebView2/Edge 
 - O recurso foi desenhado para trabalhar com qualquer linguagem de texto, incluindo Python, HTML/CSS/JavaScript, Dart e Flutter. A compilação Flutter ainda depende dos SDKs e ferramentas instalados no computador.
 
 
+## Controle operacional do Windows — perfil Pessoal
+
+O painel **Controle avançado do Windows** está disponível em Controle do computador > Controle avançado do Windows, somente no perfil Pessoal. Cada operação pede confirmação e registra um resumo no log de permissões.
+
+- Abrir um executável .exe escolhido pelo usuário, sem usar shell.
+- Abrir arquivos e pastas escolhidos pelo usuário; copiar ou mover um arquivo para uma pasta selecionada, sempre com confirmação.
+- Abrir Configurações do Windows e Gerenciador de Tarefas.
+- Consultar processos em execução e solicitar o encerramento normal de um processo selecionado. Processos críticos e o próprio JARVIS são protegidos; não há encerramento forçado automático.
+- Controlar mouse e teclado na sessão visível: clique em coordenadas da tela, digitação na janela em foco e atalhos de uma lista permitida. O PyAutoGUI mantém o failsafe ativo; mover o mouse para o canto superior esquerdo interrompe suas ações.
+- Instalar pacote Python pelo nome do pacote usando pip install --user, sem URLs ou parâmetros arbitrários.
+- Solicitar instalação de aplicativo por ID exato do WinGet. O instalador pode solicitar permissões próprias do Windows.
+
+**Limites deliberados:** não há terminal livre, execução arbitrária de PowerShell/CMD, elevação administrativa, acesso a credenciais, desativação de antivírus/firewall, persistência oculta ou contorno de políticas. Ações destrutivas e financeiras não são automatizadas. O painel não transforma o JARVIS em administrador do Windows: as permissões da conta, UAC, antivírus, ACLs e políticas da organização continuam valendo. O perfil Escola bloqueia todo esse painel avançado.
 ## Perfis de acesso ao computador
 
 O JARVIS EXE possui dois perfis configuráveis em **Configurações > Perfil de acesso ao computador**:
 
-- **Pessoal:** libera as ações locais que o JARVIS já implementa, sempre com confirmações para abrir aplicativos, criar arquivos, capturar tela, auditar pastas ou executar tarefas de projeto. Não significa shell irrestrito, elevação de administrador ou acesso oculto.
+- **Pessoal:** libera as ações locais implementadas, incluindo o painel de controle operacional do Windows. Abrir programas, copiar/mover arquivos, instalar pacotes e controlar mouse/teclado exigem confirmações por ação. Não significa shell irrestrito, elevação de administrador ou acesso oculto.
 - **Escola:** perfil restrito para uso em computadores da instituição. Limita a abertura de aplicativos a uma lista básica (VS Code, Bloco de Notas e Calculadora), restringe leitura/escrita/abertura de projetos à pasta `Documents/JarvisProjects`, permite somente análises estáticas aprovadas e navegação sujeita aos filtros da rede. Bloqueia captura de tela, auditoria fora da pasta de projetos, execução de testes de código, instalação de dependências e ações administrativas.
 - **Registro:** decisões de permissão são registradas em `%APPDATA%/Jarvis/access_audit.jsonl`, sem guardar caminhos completos de arquivos.
 - **Limite fundamental:** esses perfis são controles internos do aplicativo, não uma sandbox nem um substituto das políticas de TI. A conta do Windows, permissões NTFS, UAC, antivírus, filtros de rede e gerenciamento da escola continuam mandando. O JARVIS não tenta elevar privilégios nem contornar restrições impostas pela instituição.
-- **Ainda não implementado:** controle genérico de mouse/teclado, leitura ampla de qualquer janela, execução arbitrária de comandos, instalação automática de dependências e acesso irrestrito a todo o disco. Essas capacidades precisam de fluxos próprios, escopo visível, confirmação e testes antes de serem anunciadas.
+- **Ainda não implementado:** controle visual inteligente que reconheça elementos de qualquer janela, execução arbitrária de comandos, instalação automática sem confirmação e acesso irrestrito a todo o disco. O controle atual é explícito, por coordenadas/atalhos permitidos e seletores do Windows.
