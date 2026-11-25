@@ -1,8 +1,10 @@
 import json
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
 from access_control import AccessController, PERSONAL, SCHOOL
 
 
