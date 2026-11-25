@@ -1181,6 +1181,8 @@ class JarvisApp:
             self.root.after(0, lambda value=message: self.add("PESQUISA • ERRO", value, True))
 
     def open_internal_url(self, url, label="NAVEGADOR"):
+        if not self.require_access("browser"):
+            return
         try:
             if self.internal_browser is None or self.internal_browser.window is None:
                 self.internal_browser = InternalBrowser(self.root, url)
