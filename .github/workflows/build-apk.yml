@@ -11,6 +11,8 @@ on:
   push:
     branches:
       - "**"
+    paths-ignore:
+      - "**/*.md"
 
 # Builds de qualquer branch não precisam de permissão para criar Releases.
 permissions:

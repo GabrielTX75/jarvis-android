@@ -116,9 +116,9 @@ A interface do APK usa agora a paleta azul-marinho e ciano, alinhada à identida
 
 ## CI Android — artefato separado de publicação
 
-- Push em qualquer branch executa validação JavaScript, testes unitários e compilação do APK de depuração; o APK fica disponível como artefato de CI por 14 dias.
+- Push em qualquer branch executa auditoria estática da WebView, verificação de sintaxe JavaScript, testes unitários e compilação do APK de depuração. O artefato fica retido por 1 dia quando a cota do GitHub Actions permite; build concluído não significa que o arquivo foi disponibilizado.
 - O workflow não publica mais uma Release a cada push nem concede permissão de escrita ao job de build.
-- Publicação da Release `apk-latest` exige execução manual do workflow, opção `publish_release=true` e branch `main`.
+- Publicação da Release `apk-latest` exige execução manual do workflow, opção `publish_release=true` e branch `main`; esse job recompila o APK e não depende do armazenamento de artifacts.
 - O arquivo publicado por esse fluxo é um APK de depuração para validação, não um instalador de produção assinado.
 
 
