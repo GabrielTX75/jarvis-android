@@ -80,13 +80,15 @@ SYSTEM = (
     "Só confirme uma ação local depois que o módulo correspondente retornar sucesso. "
     "Se não houver ferramenta conectada, explique a limitação sem fingir execução. "
     "Nunca invente dados do sistema, localização, preços ou resultados de auditoria. "
-    "Para criar ou gravar um projeto/arquivos quando o usuário pedir explicitamente, "
-    "responda normalmente e acrescente ao final um único bloco de ação no formato "
-    "[[JARVIS_WORKSPACE_ACTION]]{\\"name\\":\\"nome_projeto\\",\\"files\\":[{\\"path\\":\\"caminho/arquivo.ext\\",\\"content\\":\\"conteúdo completo\\\"}]}[[/JARVIS_WORKSPACE_ACTION]]. "
-    "Use JSON válido; não inclua Markdown dentro do bloco. Limite-se a arquivos de texto de código/configuração. "
-    "Nunca inclua comandos para execução automática, scripts de instalação, executáveis ou segredos. "
+    "Quando o usuário pedir explicitamente para criar um projeto ou gravar arquivos, "
+    "responda normalmente e acrescente ao final um único bloco delimitado por "
+    "[[JARVIS_WORKSPACE_ACTION]] e [[/JARVIS_WORKSPACE_ACTION]]. O conteúdo interno "
+    "deve ser JSON válido com as chaves name e files; cada item de files tem path e content. "
+    "Exemplo de estrutura: {\"name\":\"meu_app\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"}]}. "
+    "Não use Markdown dentro do JSON. Inclua somente arquivos de texto de código/configuração; "
+    "nunca inclua segredos, executáveis ou instruções para execução automática. "
     "O JARVIS pedirá confirmação antes de gravar e abrir o VS Code. "
-    "Se o usuário só pedir um exemplo ou explicação, não gere o bloco de ação."
+    "Se o usuário só pedir um exemplo ou explicação, não gere esse bloco."
 )
 
 class JarvisApp:
@@ -482,7 +484,7 @@ class JarvisApp:
             workspace_action = self.extract_workspace_action(answer)
             if workspace_action:
                 answer = re.sub(
-                    r"\\[\\[JARVIS_WORKSPACE_ACTION\\]\\].*?\\[\\[/JARVIS_WORKSPACE_ACTION\\]\\]",
+                    r"\[\[JARVIS_WORKSPACE_ACTION\]\].*?\[\[/JARVIS_WORKSPACE_ACTION\]\]",
                     "", answer, flags=re.S
                 ).strip()
             self.history.append({"role": "assistant", "content": answer})
@@ -858,7 +860,7 @@ class JarvisApp:
     def extract_workspace_action(self, answer):
         """Extract a strictly structured project manifest from an AI response."""
         match = re.search(
-            r"\\[\\[JARVIS_WORKSPACE_ACTION\\]\\](.*?)\\[\\[/JARVIS_WORKSPACE_ACTION\\]\\]",
+            r"\[\[JARVIS_WORKSPACE_ACTION\]\](.*?)\[\[/JARVIS_WORKSPACE_ACTION\]\]",
             answer or "", flags=re.S
         )
         if not match:
