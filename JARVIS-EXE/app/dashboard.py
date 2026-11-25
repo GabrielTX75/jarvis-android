@@ -35,6 +35,7 @@ from hologram_lab import HologramLab
 from money_lab import MoneyLab
 from security_lab import SecurityLab
 from internal_browser import InternalBrowser
+from desktop_control import DesktopControlWindow
 
 try:
     from winotify import Notification, audio
@@ -884,6 +885,7 @@ class JarvisApp:
         tk.Label(win, text="Ações locais exigem confirmação quando aplicável.",
                  bg=PANEL, fg=CYAN).pack(padx=16, pady=12)
         actions = [
+            ("Controle avançado do Windows", self.open_desktop_control),
             ("Abrir Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
             ("Abrir Visual Studio Code", self.open_vscode_dialog),
             ("Validar / testar projeto", self.project_task_dialog),
@@ -899,6 +901,24 @@ class JarvisApp:
         ]
         for label, action in actions:
             self.button(win, label, action, compact=True).pack(fill="x", padx=16, pady=4)
+
+    def open_desktop_control(self):
+        if not self.require_access("desktop_control"):
+            return
+        if self.access.mode != PERSONAL:
+            self.add("CONTROLE", "O controle avançado está disponível somente no perfil Pessoal.", True)
+            return
+        if not messagebox.askyesno(
+            "Controle avançado do Windows",
+            "O JARVIS poderá abrir programas escolhidos, manipular mouse/teclado, "
+            "gerenciar processos e instalar pacotes após confirmações individuais. "
+            "Ele não terá elevação administrativa nem poderá ignorar proteções do Windows. Continuar?"
+        ):
+            return
+        DesktopControlWindow(
+            self.root, self.require_access,
+            lambda message: self.add("CONTROLE DO WINDOWS", message)
+        )
 
     def extract_workspace_action(self, answer):
         """Extract a strictly structured project manifest from an AI response."""
