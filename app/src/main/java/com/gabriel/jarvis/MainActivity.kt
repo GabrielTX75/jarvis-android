@@ -683,13 +683,13 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 val linkSeguro = if (isSafeSearchLink(link)) link else ""
                 val linha = buildString {
                     append(linhas.size + 1).append(". ").append(titulo.ifBlank { "Resultado sem título" })
-                    if (linkSeguro.isNotBlank()) append("\\n   Link: ").append(linkSeguro)
-                    if (trecho.isNotBlank()) append("\\n   Trecho: ").append(trecho)
+                    if (linkSeguro.isNotBlank()) append("\n   Link: ").append(linkSeguro)
+                    if (trecho.isNotBlank()) append("\n   Trecho: ").append(trecho)
                 }
                 linhas.add(linha)
             }
             if (linhas.isEmpty()) throw IllegalArgumentException("A busca não encontrou resultados.")
-            if (!pending.cancelled.get()) nativeSearchResult(id, true, linhas.joinToString("\\n"), null)
+            if (!pending.cancelled.get()) nativeSearchResult(id, true, linhas.joinToString("\n"), null)
         } catch (_: SocketTimeoutException) {
             if (!pending.cancelled.get()) nativeSearchResult(id, false, "", "O servidor de busca demorou demais para responder.")
         } catch (e: IllegalArgumentException) {
