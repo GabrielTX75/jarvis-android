@@ -106,7 +106,7 @@ _TASKS = {
 
 def run_project_task(project_path, task, timeout=180):
     """Run one explicit, allowlisted validation task without a shell."""
-    if task not in _TASKS:
+    if task not in _TASKS and task != "python_run_main":
         raise ValueError("Tarefa de validação não permitida.")
     folder = Path(project_path).expanduser().resolve()
     workspace = ROOT.expanduser().resolve()
@@ -114,6 +114,42 @@ def run_project_task(project_path, task, timeout=180):
         raise ValueError("A validação só pode ser executada dentro da pasta de projetos do JARVIS.")
     if not folder.is_dir():
         raise FileNotFoundError("A pasta do projeto não existe.")
+
+    if task == "python_run_main":
+        # This is an explicit, confirmed run of the conventional entry point.
+        # It is not an OS sandbox; do not run code the user does not trust.
+        entrypoint = folder / "main.py"
+        if not entrypoint.is_file():
+            raise FileNotFoundError("Não encontrei main.py na pasta do projeto.")
+        from python_environment import resolve_python_launcher, venv_interpreter_path
+        project_python = venv_interpreter_path(folder)
+        if project_python.is_file():
+            command = [str(project_python), "-B", "main.py"]
+        else:
+            launcher = resolve_python_launcher()
+            if not launcher:
+                raise FileNotFoundError(
+                    "Python 3 não foi encontrado. Instale Python 3 ou configure o .venv do projeto."
+                )
+            command = [*launcher, "-B", "main.py"]
+        try:
+            return subprocess.run(
+                command, cwd=str(folder), shell=False, capture_output=True,
+                text=True, errors="replace", timeout=min(max(int(timeout), 1), 30),
+                check=False, stdin=subprocess.DEVNULL
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = exc.stdout or ""
+            stderr = exc.stderr or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", "replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", "replace")
+            return subprocess.CompletedProcess(
+                command, 124, stdout,
+                (stderr + "\nTempo limite de 30 segundos atingido; o processo foi interrompido.").strip()
+            )
+
     command = list(_TASKS[task])
     if command[0] not in {sys.executable}:
         executable = shutil.which(command[0])
