@@ -89,7 +89,9 @@ SYSTEM = (
     "Exemplo de estrutura: {\"name\":\"meu_app\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"}]}. "
     "Não use Markdown dentro do JSON. Inclua somente arquivos de texto de código/configuração; "
     "nunca inclua segredos, executáveis ou instruções para execução automática. "
-    "O JARVIS pedirá confirmação antes de gravar e abrir o VS Code. "
+    "Para um projeto Python executável, inclua main.py como ponto de entrada. "
+    "O JARVIS pedirá confirmação separada antes de gravar arquivos e antes de executar main.py. "
+    "O JARVIS pedirá confirmação antes de abrir o VS Code. "
     "Se o usuário só pedir um exemplo ou explicação, não gere esse bloco."
 )
 
@@ -489,7 +491,7 @@ class JarvisApp:
             return True
         self.add("JARVIS", "Confirmação recebida. Vou executar a ação solicitada.")
         self._execute_pending_voice_action(action, payload)
-        if not self.speech_active and self.pending_voice_action is None:
+        if not self.busy and not self.speech_active and self.pending_voice_action is None:
             self.voice_resume_event.set()
         return True
 
@@ -1179,6 +1181,8 @@ class JarvisApp:
             return
         self.status.set("VALIDANDO PROJETO")
         self.busy = True
+        if self.voice_session_active:
+            self.voice_resume_event.clear()
         threading.Thread(
             target=self._project_task_worker, args=(project_path, name, task),
             daemon=True
