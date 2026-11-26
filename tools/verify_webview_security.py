@@ -10,6 +10,10 @@ HTML = (ROOT / "app/src/main/assets/index.html").read_text(encoding="utf-8")
 MANIFEST = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 NETWORK = (ROOT / "app/src/main/res/xml/network_security_config.xml").read_text(encoding="utf-8")
 APP_JS = (ROOT / "app/src/main/assets/app.js").read_text(encoding="utf-8")
+SERVICE = (ROOT / "app/src/main/java/com/gabriel/jarvis/JarvisOuvidoService.kt").read_text(encoding="utf-8")
+NUCLEO = (ROOT / "app/src/main/java/com/gabriel/jarvis/NucleoJarvis.kt").read_text(encoding="utf-8")
+AUDIO_POLICY = (ROOT / "app/src/main/java/com/gabriel/jarvis/AudioReadPolicy.kt").read_text(encoding="utf-8")
+AUDIO_POLICY_TEST = (ROOT / "app/src/test/java/com/gabriel/jarvis/AudioReadPolicyTest.kt").read_text(encoding="utf-8")
 
 
 class Audit(HTMLParser):
@@ -63,8 +67,13 @@ assert "safeBrowsingEnabled = true" in ACTIVITY
 assert "allowFileAccessFromFileURLs = false" in ACTIVITY
 assert "allowUniversalAccessFromFileURLs = false" in ACTIVITY
 assert "setAcceptThirdPartyCookies(webView, false)" in ACTIVITY
-assert 'name == "ai_key"' in ACTIVITY, "A chave da IA não pode ser retornada ao JavaScript"
+assert 'private val JS_READABLE_SECRET_NAMES = setOf("busca_url", "pin_hash")' in ACTIVITY
+assert "name !in JS_READABLE_SECRET_NAMES" in ACTIVITY, "Tokens e chaves de API não podem ser retornados ao JavaScript"
 assert "@JavascriptInterface fun requestAI(messagesJson: String, requestId: String)" in ACTIVITY
+assert "@JavascriptInterface fun searchConfigured(query: String, requestId: String)" in ACTIVITY
+assert "@JavascriptInterface fun cancelSearch(requestId: String)" in ACTIVITY
+assert 'setRequestProperty("X-Jarvis-Token", token)' in ACTIVITY
+assert "AiEndpointPolicy.validate(baseUrl)" in ACTIVITY
 assert "@JavascriptInterface fun cancelAI(requestId: String)" in ACTIVITY
 assert "connection.instanceFollowRedirects = false" in ACTIVITY
 assert "ai_approved_endpoint" in ACTIVITY, "O endpoint completo precisa de aprovação nativa"
@@ -82,9 +91,19 @@ assert "endpoint completo" in ACTIVITY, "O diálogo deve deixar claro que a apro
 assert "cancelAllAiRequests(\"Consulta interrompida" in ACTIVITY
 assert "callbacksEnabled" in ACTIVITY
 assert 'lerSegredo("ai_key")' not in APP_JS, "A chave da IA não deve ser lida pelo JavaScript"
+assert 'lerSegredo("busca_token")' not in APP_JS, "O token de busca não deve ser lido pelo JavaScript"
+assert 'fetch(url+"/busca?' not in APP_JS, "A busca autenticada deve passar pelo Kotlin"
+assert "requestNativeSearch" in APP_JS, "A busca Android deve usar o transporte nativo"
 assert "requestNativeAI(messages" in APP_JS, "Android deve usar o transporte nativo"
 assert "await syncWpp()" in APP_JS, "A chamada de IA deve aguardar a aprovação do endpoint"
 assert "nativeAiConfigPending=promise" in APP_JS, "A promessa de configuração deve existir antes da chamada nativa"
+assert "AudioReadPolicy.decide(n)" in SERVICE
+assert "AudioReadPolicy.decide(n)" in NUCLEO
+assert "AudioReadDecision.RECOVER" in SERVICE and "AudioReadDecision.RECOVER" in NUCLEO
+assert "Notification.VISIBILITY_PRIVATE" in SERVICE
+assert 'atualizarStatus("Ouvi:' not in SERVICE, "A notificação não deve expor transcrições de voz"
+assert "fun decide(readResult: Int)" in AUDIO_POLICY
+assert "negativeReadResultsRequestRecorderRecovery" in AUDIO_POLICY_TEST
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
