@@ -6,7 +6,7 @@ on:
       - "JARVIS-EXE/**"
       - ".github/workflows/build-exe.yml"
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: jarvis-exe-${{ github.ref }}
   cancel-in-progress: true
@@ -27,7 +27,26 @@ jobs:
         run: python -m unittest discover -s JARVIS-EXE/tests -v
       - name: Build EXE
         run: pyinstaller --noconfirm --clean --onefile --windowed --name JARVIS --collect-all pyttsx3 --collect-all edge_tts --collect-all pygame --hidden-import=pyttsx3.drivers.sapi5 JARVIS-EXE/app/main.py
-      - name: Publicar EXE em GitHub Releases
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Windows-EXE
+          path: dist/JARVIS.exe
+          retention-days: 14
+
+  publish-release:
+    needs: test-and-build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows executable
+        uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-Windows-EXE
+          path: dist
+      - name: Publish latest EXE
         uses: softprops/action-gh-release@v2
         with:
           tag_name: exe-latest
