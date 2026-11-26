@@ -33,7 +33,7 @@ class DashboardInterfaceTests(unittest.TestCase):
             "status_label", "clock", "date_label", "hero", "chat",
             "agent_picker", "entry", "voice_button", "voice_state",
             "ai_state", "net_state", "security_state", "cpu_state",
-            "mem_state", "disk_state", "battery_state", "location", "footer",
+            "mem_state", "disk_state", "battery_state", "footer",
         }
         self.assertTrue(expected.issubset(assigned), expected - assigned)
 
@@ -42,7 +42,7 @@ class DashboardInterfaceTests(unittest.TestCase):
         for required in (
             "self.focus_chat", "self.new_project", "self.tools",
             "self.open_security_lab", "self.settings", "self.listen",
-            "self.send", "self.agent_var", "self.manage_memory",
+            "self.send", "self.agent_var", "self.manage_memory", "self.location",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, build_source)
