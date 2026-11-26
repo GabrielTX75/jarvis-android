@@ -196,28 +196,44 @@ class NucleoSessao(private val servico: JarvisOuvidoService, private val aoEncer
         falar("Pode falar, senhor.")
         var ultimo = System.currentTimeMillis()
         val buf = ByteArray(3200)
-        while (ativa) {
-            val n = gravador.read(buf, 0, buf.size)
-            if (n <= 0) continue
-            val nivelAgora = nivelDe(buf, n)
-            main.post { (orb as? OrbView)?.nivel = nivelAgora }
-            if (falando) { rec.reset(); ultimo = System.currentTimeMillis(); continue }
-            if (rec.acceptWaveForm(buf, n)) {
-                val texto = JSONObject(rec.result).optString("text", "").trim()
-                if (texto.isNotEmpty()) {
-                    ultimo = System.currentTimeMillis()
-                    processar(texto)
+        try {
+            while (ativa) {
+                val n = try { gravador.read(buf, 0, buf.size) } catch (_: Exception) { -1 }
+                when (AudioReadPolicy.decide(n)) {
+                    AudioReadDecision.PROCESS -> {
+                        val nivelAgora = nivelDe(buf, n)
+                        main.post { (orb as? OrbView)?.nivel = nivelAgora }
+                        if (falando) {
+                            rec.reset()
+                            ultimo = System.currentTimeMillis()
+                            continue
+                        }
+                        if (rec.acceptWaveForm(buf, n)) {
+                            val texto = JSONObject(rec.result).optString("text", "").trim()
+                            if (texto.isNotEmpty()) {
+                                ultimo = System.currentTimeMillis()
+                                processar(texto)
+                            }
+                        }
+                    }
+                    AudioReadDecision.WAIT -> Thread.sleep(10)
+                    AudioReadDecision.RECOVER -> {
+                        if (ativa) falar("A captura do microfone foi interrompida. Vou encerrar a conversa por voz.")
+                        encerrar()
+                        break
+                    }
+                }
+                if (System.currentTimeMillis() - ultimo > 45_000L) {
+                    falar("Vou ficar em silêncio. Diga Jarvis quando precisar.")
+                    encerrar()
+                    break
                 }
             }
-            if (System.currentTimeMillis() - ultimo > 45_000L) {
-                falar("Vou ficar em silêncio. Diga Jarvis quando precisar.")
-                encerrar()
-                break
-            }
+        } finally {
+            try { gravador.stop() } catch (_: Exception) {}
+            gravador.release()
+            rec.close()
         }
-        try { gravador.stop() } catch (_: Exception) {}
-        gravador.release()
-        rec.close()
     }
 
     private fun processar(texto: String) {
