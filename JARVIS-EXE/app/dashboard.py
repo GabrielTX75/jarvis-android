@@ -99,8 +99,12 @@ class JarvisApp:
     def __init__(self, root):
         self.root = root
         root.title("JARVIS — Central de Comando")
-        root.geometry("1500x940")
-        root.minsize(1120, 740)
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        window_width = min(1360, max(1024, screen_width - 48))
+        window_height = min(850, max(640, screen_height - 96))
+        root.geometry(f"{window_width}x{window_height}")
+        root.minsize(1024, 640)
         root.configure(bg=BG)
         APP_DIR.mkdir(parents=True, exist_ok=True)
         self.config = self.load_config()
