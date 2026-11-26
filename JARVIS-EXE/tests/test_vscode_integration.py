@@ -108,7 +108,8 @@ class VscodeIntegrationTests(unittest.TestCase):
                 self.assertEqual(args[0], [sys.executable, "-B", "main.py"])
                 self.assertEqual(kwargs["timeout"], 30)
                 self.assertFalse(kwargs["shell"])
-                self.assertEqual(kwargs["cwd"], str(project))
+                # Windows may expose a long path while tempfile returned its 8.3 alias.
+                self.assertTrue(Path(kwargs["cwd"]).samefile(project))
 
     def test_python_main_rejects_missing_entrypoint(self):
         with tempfile.TemporaryDirectory() as temp:
