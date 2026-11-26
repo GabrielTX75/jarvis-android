@@ -24,7 +24,7 @@ from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, t
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
 from access_control import AccessController, PERSONAL, SCHOOL
-from voice_session import run_continuous_session
+from voice_session import classify_confirmation, run_continuous_session
 
 import keyring
 from desktop_tools import capture_screen, read_screen_text
@@ -129,6 +129,8 @@ class JarvisApp:
         self.voice_resume_event = threading.Event()
         self.voice_resume_event.set()
         self.voice_error = None
+        self.pending_voice_action = None
+        self.pending_voice_timeout = None
         self.speech_active = False
         self.voice_button = None
         self.voice_state = None
@@ -440,17 +442,81 @@ class JarvisApp:
     def focus_chat(self):
         self.entry.focus_set()
 
+    def _request_voice_confirmation(self, action, payload, message):
+        """Queue one explicit action for spoken or typed confirmation."""
+        if self.pending_voice_timeout is not None:
+            try:
+                self.root.after_cancel(self.pending_voice_timeout)
+            except Exception:
+                pass
+        self.pending_voice_action = (action, payload)
+        self.pending_voice_timeout = self.root.after(60000, self._expire_voice_confirmation)
+        self.add("JARVIS • CONFIRMAÇÃO", message + " Diga 'confirmar' ou 'cancelar'.")
+        if self.voice_session_active:
+            self.voice_resume_event.clear()
+            self.speak(message + " Diga confirmar ou cancelar.")
+        else:
+            self.add("JARVIS", "Você também pode digitar: confirmar ou cancelar.")
+
+    def _expire_voice_confirmation(self):
+        self.pending_voice_action = None
+        self.pending_voice_timeout = None
+        self.add("JARVIS", "A confirmação expirou. Nenhuma ação foi executada.")
+        if self.voice_session_active and not self.speech_active:
+            self.voice_resume_event.set()
+
+    def _handle_pending_voice_confirmation(self, prompt):
+        if self.pending_voice_action is None:
+            return False
+        decision = classify_confirmation(prompt)
+        if decision is None:
+            self.add("JARVIS", "Existe uma ação aguardando confirmação. Diga somente 'confirmar' ou 'cancelar'.")
+            if self.voice_session_active:
+                self.speak("Ação aguardando confirmação. Diga confirmar ou cancelar.")
+            return True
+        action, payload = self.pending_voice_action
+        self.pending_voice_action = None
+        if self.pending_voice_timeout is not None:
+            try:
+                self.root.after_cancel(self.pending_voice_timeout)
+            except Exception:
+                pass
+        self.pending_voice_timeout = None
+        if decision == "cancel":
+            self.add("JARVIS", "Ação cancelada. Nada foi executado.")
+            if self.voice_session_active:
+                self.speak("Ação cancelada.")
+            return True
+        self.add("JARVIS", "Confirmação recebida. Vou executar a ação solicitada.")
+        self._execute_pending_voice_action(action, payload)
+        if not self.speech_active and self.pending_voice_action is None:
+            self.voice_resume_event.set()
+        return True
+
+    def _execute_pending_voice_action(self, action, payload):
+        if action == "create_project":
+            self._save_generated_project(payload)
+        elif action == "run_project_task":
+            self._start_project_task(payload["name"], payload["task"])
+        elif action == "open_vscode":
+            self._open_vscode_project(payload)
+        else:
+            self.add("JARVIS", "Ação pendente desconhecida; nada foi executado.", True)
+
     def send(self):
         prompt = self.entry.get().strip()
         if not prompt or self.busy:
             return
         self.entry.delete(0, "end")
         self.add("VOCÊ", prompt)
+        if self._handle_pending_voice_confirmation(prompt):
+            return
         if self.try_memory_command(prompt):
             self.voice_resume_event.set()
             return
         if self.command_router.dispatch(prompt):
-            self.voice_resume_event.set()
+            if not self.speech_active:
+                self.voice_resume_event.set()
             return
         self.history.append({"role": "user", "content": prompt})
         self.busy = True
@@ -459,6 +525,7 @@ class JarvisApp:
         threading.Thread(target=self.ask, daemon=True).start()
 
     def ask(self):
+        waiting_for_voice_confirmation = False
         try:
             request_history = [dict(item) for item in self.history]
             context = self.memory.prompt_context()
@@ -490,6 +557,9 @@ class JarvisApp:
             if answer is None:
                 raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq ou Gemini em Configurações."]))
             workspace_action = self.extract_workspace_action(answer)
+            waiting_for_voice_confirmation = bool(workspace_action and self.voice_session_active)
+            if waiting_for_voice_confirmation:
+                self.voice_resume_event.clear()
             if workspace_action:
                 answer = re.sub(
                     r"\[\[JARVIS_WORKSPACE_ACTION\]\].*?\[\[/JARVIS_WORKSPACE_ACTION\]\]",
@@ -501,7 +571,7 @@ class JarvisApp:
                 self.root.after(0, lambda action=workspace_action: self.apply_workspace_action(action))
             self.root.after(0, lambda: self.status.set("ONLINE"))
             self.root.after(0, lambda p=provider: self.ai_state.set("IA: " + p + " conectada"))
-            if self.config.get("speak_replies"):
+            if (self.config.get("speak_replies") or self.voice_session_active) and not workspace_action:
                 self.speak(answer)
         except Exception as exc:
             msg = str(exc)
@@ -510,7 +580,7 @@ class JarvisApp:
             self.root.after(0, lambda: self.ai_state.set("IA: erro"))
         finally:
             self.busy = False
-            if not self.speech_active:
+            if not self.speech_active and not waiting_for_voice_confirmation:
                 self.voice_resume_event.set()
 
     def _voice_ui(self, listening, message=None):
@@ -943,29 +1013,56 @@ class JarvisApp:
             return
         files = action.get("files", [])
         count = len(files) if isinstance(files, list) else 0
-        if not messagebox.askyesno(
-            "Confirmar criação do projeto",
-            f"O JARVIS preparou {count} arquivo(s) para o projeto '{name}'.\n"
-            "Os arquivos serão gravados somente na pasta de projetos do JARVIS. "
-            "Nenhum código será executado. Deseja continuar?"
-        ):
+        message = (
+            f"Preparei {count} arquivo(s) para o projeto {name}. "
+            "Vou gravá-los somente na pasta de projetos do JARVIS; nenhum código será executado nesta etapa."
+        )
+        if self.voice_session_active:
+            self._request_voice_confirmation("create_project", action, message)
+            return
+        if not messagebox.askyesno("Confirmar criação do projeto", message + "\nDeseja continuar?"):
             self.add("PROJETOS", "Criação cancelada; nenhum arquivo foi gravado.")
             return
+        self._save_generated_project(action)
+
+    def _save_generated_project(self, action):
+        name = action.get("name", "projeto")
+        from project_workspace import ROOT
+        if not self.require_access("workspace_write", ROOT / name):
+            return
         try:
-            project_path, written = create_generated_project(name, files)
+            project_path, written = create_generated_project(name, action.get("files", []))
             self.add("PROJETOS", f"Projeto criado em {project_path} ({len(written)} arquivo(s)).")
-            if messagebox.askyesno(
-                "Abrir no VS Code",
-                f"Projeto salvo. Deseja abrir '{name}' no Visual Studio Code?"
-            ) and self.require_access("launch_app", "Code.exe") and self.require_access("workspace_open", project_path):
-                try:
-                    open_in_vscode(project_path)
-                    self.add("CONTROLE", f"VS Code aberto no projeto {name}.")
-                except Exception as exc:
-                    self.add("CONTROLE", f"Projeto salvo, mas não consegui abrir o VS Code: {exc}", True)
+            if self.voice_session_active and (project_path / "main.py").is_file():
+                self._request_voice_confirmation(
+                    "run_project_task", {"name": name, "task": "python_run_main"},
+                    "O projeto foi salvo e contém main.py. Executá-lo agora? "
+                    "O programa terá as permissões normais da sua conta do Windows; isso não é uma sandbox."
+                )
+                return
+            if self.voice_session_active:
+                self._request_voice_confirmation(
+                    "open_vscode", str(project_path),
+                    f"Projeto salvo. Deseja abrir {name} no Visual Studio Code?"
+                )
+                return
+            if messagebox.askyesno("Abrir no VS Code",
+                                   f"Projeto salvo. Deseja abrir '{name}' no Visual Studio Code?"):
+                self._open_vscode_project(str(project_path))
         except Exception as exc:
             self.add("PROJETOS", f"Não foi possível criar o projeto: {exc}", True)
             messagebox.showerror("Projeto", str(exc))
+
+    def _open_vscode_project(self, project_path):
+        from pathlib import Path
+        folder = Path(project_path).expanduser().resolve()
+        if not self.require_access("launch_app", "Code.exe") or not self.require_access("workspace_open", folder):
+            return
+        try:
+            open_in_vscode(folder)
+            self.add("CONTROLE", f"VS Code aberto no projeto {folder.name}.")
+        except Exception as exc:
+            self.add("CONTROLE", f"Não consegui abrir o VS Code: {exc}", True)
 
     def open_vscode_dialog(self):
         from project_workspace import ROOT
@@ -1001,14 +1098,16 @@ class JarvisApp:
         if not match:
             return False
         verb, language, name = match.groups()
-        testing = verb.lower() in {"teste", "testar", "rode", "executar"}
+        verb = verb.lower()
         language = language.lower()
-        if testing and language == "flutter":
-            task = "flutter_test"
-        elif testing and language == "python":
+        if language == "python" and verb in {"rode", "executar"}:
+            task = "python_run_main"
+        elif language == "python" and verb in {"teste", "testar"}:
             task = "python_tests"
-        elif testing:
-            self.add("JARVIS", "Para Dart, use 'analise dart NOME'. Testes Dart exigem configuração específica do projeto.")
+        elif language == "flutter" and verb in {"teste", "testar", "rode", "executar"}:
+            task = "flutter_test"
+        elif language == "dart" and verb in {"teste", "testar", "rode", "executar"}:
+            self.add("JARVIS", "Para Dart, use 'analise dart NOME'. A execução direta de Dart ainda não está habilitada.")
             return True
         elif language == "flutter":
             task = "flutter_analyze"
@@ -1042,26 +1141,44 @@ class JarvisApp:
         from project_workspace import ROOT
         if not self.require_access("run_project_task", ROOT / name, task):
             return
-        project_path = ROOT / name
-        description = {
+        descriptions = {
             "flutter_analyze": "flutter analyze (análise estática)",
-            "flutter_test": "flutter test (executa os testes do projeto)",
+            "flutter_test": "flutter test (executa testes do projeto)",
             "dart_analyze": "dart analyze (análise estática)",
             "python_compile": "compilação sintática Python",
-            "python_tests": "testes Python (executam o código de teste do projeto)"
-        }[task]
+            "python_tests": "testes Python (executam código do projeto)",
+            "python_run_main": "executar main.py do projeto"
+        }
+        description = descriptions.get(task)
+        if not description:
+            self.add("JARVIS", "Tarefa desconhecida; nada foi executado.", True)
+            return
         warning = (
-            "\n\nAtenção: testes executam código existente no projeto. "
-            "Só continue se você confia nos arquivos."
-            if task in {"flutter_test", "python_tests"} else ""
+            " O código será executado com as permissões normais da sua conta do Windows; "
+            "não é uma sandbox. Continue somente se confiar nos arquivos."
+            if task in {"python_run_main", "flutter_test", "python_tests"} else ""
         )
+        if self.voice_session_active:
+            self._request_voice_confirmation(
+                "run_project_task", {"name": name, "task": task},
+                f"Confirma {description} em {name}?{warning}"
+            )
+            return
         if not messagebox.askyesno(
             "Confirmar validação",
-            f"Executar {description} em '{name}'?{warning}\\n"
+            f"Executar {description} em '{name}'?{warning}\n"
             "O JARVIS não instalará dependências automaticamente."
         ):
             return
+        self._start_project_task(name, task)
+
+    def _start_project_task(self, name, task):
+        from project_workspace import ROOT
+        project_path = ROOT / name
+        if not self.require_access("run_project_task", project_path, task):
+            return
         self.status.set("VALIDANDO PROJETO")
+        self.busy = True
         threading.Thread(
             target=self._project_task_worker, args=(project_path, name, task),
             daemon=True
@@ -1069,16 +1186,23 @@ class JarvisApp:
 
     def _project_task_worker(self, project_path, name, task):
         try:
-            result = run_project_task(project_path, task)
+            result = run_project_task(project_path, task, timeout=30 if task == "python_run_main" else 180)
             output = (result.stdout or "") + (result.stderr or "")
             if not output.strip():
                 output = "O comando terminou sem saída."
             status = "SUCESSO" if result.returncode == 0 else f"ERRO (código {result.returncode})"
-            self.root.after(0, lambda: self.add("VALIDAÇÃO • " + status, f"{name}:\n{output[:12000]}", result.returncode != 0))
+            message = f"{name}: {status}. " + output[:500].replace("\n", " ")
+            self.root.after(0, lambda: self.add(
+                "VALIDAÇÃO • " + status, f"{name}:\n{output[:12000]}", result.returncode != 0
+            ))
             self.root.after(0, lambda: self.status.set("PRONTO"))
+            self.root.after(0, lambda: setattr(self, "busy", False))
+            if self.voice_session_active:
+                self.root.after(0, lambda value=message: self.speak(value))
         except Exception as exc:
             self.root.after(0, lambda: self.add("VALIDAÇÃO • ERRO", str(exc), True))
             self.root.after(0, lambda: self.status.set("ERRO"))
+            self.root.after(0, lambda: setattr(self, "busy", False))
 
     def open_app(self, exe, label):
         if not self.require_access("launch_app", exe):
