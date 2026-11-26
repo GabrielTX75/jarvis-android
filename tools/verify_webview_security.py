@@ -74,6 +74,9 @@ assert "@JavascriptInterface fun searchConfigured(query: String, requestId: Stri
 assert "@JavascriptInterface fun cancelSearch(requestId: String)" in ACTIVITY
 assert 'setRequestProperty("X-Jarvis-Token", token)' in ACTIVITY
 assert "AiEndpointPolicy.validate(baseUrl)" in ACTIVITY
+assert "if (Manifest.permission.RECORD_AUDIO in faltando)" in ACTIVITY
+assert "pendingBackgroundListen = true" in ACTIVITY
+assert "REQ_BACKGROUND_LISTEN" in ACTIVITY
 assert "@JavascriptInterface fun cancelAI(requestId: String)" in ACTIVITY
 assert "connection.instanceFollowRedirects = false" in ACTIVITY
 assert "ai_approved_endpoint" in ACTIVITY, "O endpoint completo precisa de aprovação nativa"
