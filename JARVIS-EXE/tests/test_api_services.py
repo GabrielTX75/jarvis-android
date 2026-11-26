@@ -134,5 +134,49 @@ class ApiServiceTests(unittest.TestCase):
         self.assertEqual(payload["contents"][0]["role"], "user")
 
 
+    def test_local_only_mode_never_falls_back_to_cloud(self):
+        with patch("api_services.ollama_chat", side_effect=api_services.ApiServiceError("offline")) as local, \
+             patch("api_services.groq_chat") as groq, \
+             patch("api_services.gemini_chat") as gemini:
+            with self.assertRaises(api_services.ApiServiceError) as caught:
+                api_services.chat_with_fallback(
+                    [{"role": "user", "content": "mensagem privada"}],
+                    prefer_local=True,
+                    groq_key="configured-but-must-not-be-used",
+                    gemini_key="configured-but-must-not-be-used",
+                )
+        self.assertIn("somente local", str(caught.exception))
+        self.assertIn("Nenhuma mensagem foi enviada", str(caught.exception))
+        local.assert_called_once()
+        groq.assert_not_called()
+        gemini.assert_not_called()
+
+    def test_local_only_mode_uses_ollama_without_cloud_fallback(self):
+        with patch("api_services.ollama_chat", return_value="Resposta local") as local, \
+             patch("api_services.groq_chat") as groq, \
+             patch("api_services.gemini_chat") as gemini:
+            answer, provider = api_services.chat_with_fallback(
+                [{"role": "user", "content": "Oi"}], prefer_local=True
+            )
+        self.assertEqual((answer, provider), ("Resposta local", "IA local (Ollama)"))
+        local.assert_called_once()
+        groq.assert_not_called()
+        gemini.assert_not_called()
+
+    def test_cloud_mode_keeps_groq_then_gemini_then_local_fallback_order(self):
+        with patch("api_services.groq_chat", side_effect=api_services.ApiServiceError("quota")), \
+             patch("api_services.gemini_chat", return_value="Resposta Gemini") as gemini, \
+             patch("api_services.ollama_chat") as local:
+            answer, provider = api_services.chat_with_fallback(
+                [{"role": "user", "content": "Oi"}],
+                groq_key="configured",
+                gemini_key="configured",
+            )
+        self.assertEqual((answer, provider), ("Resposta Gemini", "Gemini (reserva)"))
+        gemini.assert_called_once()
+        local.assert_not_called()
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus, quote
-from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, ollama_chat, tavily_search
+from api_services import ApiServiceError, brapi_quote, chat_with_fallback, tavily_search
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
 from access_control import AccessController, PERSONAL, SCHOOL
@@ -540,38 +540,22 @@ class JarvisApp:
                 request_history[0]["content"] = system_text
             else:
                 request_history.insert(0, {"role": "system", "content": system_text})
-            groq_key = keyring.get_password("JARVIS", "groq_key") or keyring.get_password("JARVIS", "api_key") or ""
-            gemini_key = keyring.get_password("JARVIS", "gemini_key") or ""
-            answer = None
-            provider = ""
-            errors = []
-            if self.config.get("prefer_local"):
-                try:
-                    answer = ollama_chat(request_history, self.config.get("local_model", "llama3.2:3b"))
-                    provider = "IA local (Ollama)"
-                except Exception as exc:
-                    errors.append("Local: " + str(exc))
-            if answer is None and groq_key:
-                try:
-                    answer = groq_chat(groq_key, self.config["model"], request_history,
-                                        endpoint=self.config["endpoint"])
-                    provider = "Groq"
-                except Exception as exc:
-                    errors.append("Groq: " + str(exc))
-            if answer is None and gemini_key:
-                try:
-                    answer = gemini_chat(gemini_key, request_history)
-                    provider = "Gemini (reserva)"
-                except Exception as exc:
-                    errors.append("Gemini: " + str(exc))
-            if answer is None and not self.config.get("prefer_local"):
-                try:
-                    answer = ollama_chat(request_history, self.config.get("local_model", "llama3.2:3b"))
-                    provider = "IA local (Ollama)"
-                except Exception as exc:
-                    errors.append("Local: " + str(exc))
-            if answer is None:
-                raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq/Gemini ou instale o Ollama com um modelo local."]))
+            prefer_local = bool(self.config.get("prefer_local"))
+            # In local-only mode do not even retrieve cloud credentials.
+            groq_key = "" if prefer_local else (
+                keyring.get_password("JARVIS", "groq_key")
+                or keyring.get_password("JARVIS", "api_key") or ""
+            )
+            gemini_key = "" if prefer_local else keyring.get_password("JARVIS", "gemini_key") or ""
+            answer, provider = chat_with_fallback(
+                request_history,
+                prefer_local=prefer_local,
+                local_model=self.config.get("local_model", "llama3.2:3b"),
+                groq_key=groq_key,
+                groq_model=self.config.get("model", "openai/gpt-oss-120b"),
+                groq_endpoint=self.config.get("endpoint", "https://api.groq.com/openai/v1/chat/completions"),
+                gemini_key=gemini_key,
+            )
             workspace_action = self.extract_workspace_action(answer)
             waiting_for_voice_confirmation = bool(workspace_action and self.voice_session_active)
             if waiting_for_voice_confirmation:
@@ -840,7 +824,7 @@ class JarvisApp:
 
         prefer_local_var = tk.BooleanVar(value=bool(self.config.get("prefer_local", False)))
         tk.Checkbutton(
-            win, text="Priorizar IA local (Ollama) — manter conversas neste computador",
+            win, text="Usar somente IA local (Ollama) — nenhuma mensagem será enviada à nuvem",
             variable=prefer_local_var, bg=PANEL, fg=CYAN, selectcolor="#09243a",
             activebackground=PANEL, activeforeground=TEXT
         ).pack(anchor="w", padx=16, pady=(10, 2))

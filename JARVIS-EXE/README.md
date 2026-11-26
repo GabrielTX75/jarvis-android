@@ -185,9 +185,9 @@ O JARVIS EXE pode conversar com um modelo local pelo Ollama, sem enviar o conte�
 1. Instale o Ollama para Windows pelo site oficial: https://ollama.com/download/windows
 2. Abra o terminal do Windows e baixe um modelo leve para começar: `ollama pull llama3.2:3b`.
 3. Deixe o Ollama em execução.
-4. Abra Configurações no JARVIS, mantenha `llama3.2:3b` como modelo local e marque **Priorizar IA local**.
+4. Abra Configurações no JARVIS, mantenha `llama3.2:3b` como modelo local e marque **Usar somente IA local**.
 5. Salve e envie uma mensagem de teste.
 
 O primeiro download do modelo exige internet e ocupa espaço em disco. Depois de baixado, a inferência é local. A velocidade depende de RAM, CPU/GPU e do tamanho do modelo; computadores modestos podem responder lentamente. A IA local não precisa de chave API, mas o JARVIS EXE não instala nem baixa modelos silenciosamente. O usuário escolhe e instala o Ollama e o modelo.
 
-Se a opção de prioridade local estiver desmarcada, o JARVIS tenta Groq e Gemini primeiro e usa Ollama como alternativa, caso esteja disponível. Se estiver marcada, tenta Ollama primeiro e pode recorrer aos provedores online se o Ollama falhar.
+Com **Usar somente IA local** marcado, o JARVIS consulta exclusivamente o Ollama em `127.0.0.1`. Se o Ollama estiver desligado ou o modelo não existir, o JARVIS mostra um erro e não envia a conversa para Groq, Gemini ou qualquer provedor online. Nesse modo, nem sequer consulta as credenciais de nuvem. Com a opção desmarcada, o JARVIS tenta Groq, depois Gemini e, por último, Ollama como alternativa.

@@ -170,3 +170,38 @@ def gemini_chat(api_key, messages, model="gemini-3.8-flash"):
     if not answer.strip():
         raise ApiServiceError("O Gemini retornou uma resposta vazia.")
     return answer
+
+
+def chat_with_fallback(messages, *, prefer_local=False, local_model="llama3.2:3b",
+                       groq_key="", groq_model="openai/gpt-oss-120b",
+                       groq_endpoint="https://api.groq.com/openai/v1/chat/completions",
+                       gemini_key=""):
+    """Choose a provider; prefer_local is strict and never sends prompts to cloud."""
+    if prefer_local:
+        try:
+            return ollama_chat(messages, model=local_model), "IA local (Ollama)"
+        except Exception:
+            raise ApiServiceError(
+                "Modo somente local: o Ollama está indisponível ou o modelo não foi encontrado. "
+                "Nenhuma mensagem foi enviada a provedores online. Verifique se o Ollama está "
+                "em execução e se o modelo foi baixado."
+            ) from None
+
+    errors = []
+    if groq_key:
+        try:
+            return groq_chat(groq_key, groq_model, messages, endpoint=groq_endpoint), "Groq"
+        except Exception as exc:
+            errors.append("Groq: " + str(exc))
+    if gemini_key:
+        try:
+            return gemini_chat(gemini_key, messages), "Gemini (reserva)"
+        except Exception as exc:
+            errors.append("Gemini: " + str(exc))
+    try:
+        return ollama_chat(messages, model=local_model), "IA local (Ollama)"
+    except Exception as exc:
+        errors.append("Local: " + str(exc))
+    raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or [
+        "Configure Groq/Gemini ou instale o Ollama com um modelo local."
+    ]))
