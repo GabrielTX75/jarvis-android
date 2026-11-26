@@ -838,6 +838,12 @@ class JarvisApp:
             entry.pack(padx=16, ipady=6)
             fields[key] = entry
 
+        prefer_local_var = tk.BooleanVar(value=bool(self.config.get("prefer_local", False)))
+        tk.Checkbutton(
+            win, text="Priorizar IA local (Ollama) — manter conversas neste computador",
+            variable=prefer_local_var, bg=PANEL, fg=CYAN, selectcolor="#09243a",
+            activebackground=PANEL, activeforeground=TEXT
+        ).pack(anchor="w", padx=16, pady=(10, 2))
         tk.Label(win, text="COFRE DE APIs — os campos secretos ficam vazios ao abrir.",
                  bg=PANEL, fg=CYAN, font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(16, 4))
         api_entries = {"groq": fields["api_key"]}
@@ -944,6 +950,7 @@ class JarvisApp:
                     if service == "groq":
                         keyring.set_password("JARVIS", "api_key", value)
                 # Empty fields preserve existing credentials; no accidental deletion.
+            self.config["prefer_local"] = prefer_local_var.get()
             self.config["speak_replies"] = speak_var.get()
             self.save_config()
             self.location.set("Localização: " + (self.config["location_label"] or "não configurada"))
