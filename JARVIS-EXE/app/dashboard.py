@@ -856,29 +856,37 @@ class JarvisApp:
                 api_status[service].set("Informe/salve a chave primeiro")
                 return
 
-            api_status[service].set("Testando…")
+            api_status[service].set("Testando conversa real…")
             def worker():
                 try:
+                    # A successful model-list request does not prove generation works.
+                    # Send a tiny prompt through the exact chat endpoint used by ask().
+                    probe = [{"role": "user", "content": "Responda apenas: OK"}]
                     if service == "groq":
-                        req = urllib.request.Request("https://api.groq.com/openai/v1/models",
-                            headers={"Authorization": "Bearer " + key, "Accept": "application/json"})
+                        model = str(self.config.get("model") or "").strip()
+                        if not model:
+                            raise ApiServiceError("Informe o identificador do modelo Groq nas configurações.")
+                        response = groq_chat(
+                            key, model, probe,
+                            endpoint=self.config.get("endpoint") or "https://api.groq.com/openai/v1/chat/completions"
+                        )
                     elif service == "gemini":
-                        req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?key=" + quote(key, safe=""),
-                            headers={"Accept": "application/json"})
+                        response = gemini_chat(key, probe)
                     elif service == "tavily":
-                        body = json.dumps({"api_key": key, "query": "teste de conexão", "max_results": 1}).encode()
-                        req = urllib.request.Request("https://api.tavily.com/search", data=body,
-                            headers={"Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+                        response = tavily_search(key, "teste de conexão", max_results=1)
                     else:
-                        req = urllib.request.Request("https://brapi.dev/api/quote/PETR4?token=" + quote(key, safe=""),
-                            headers={"Accept": "application/json"})
-                    with urllib.request.urlopen(req, timeout=12) as response:
-                        ok = 200 <= response.status < 300
-                    result = "Conexão confirmada" if ok else "Resposta inesperada"
-                except urllib.error.HTTPError as exc:
-                    result = "HTTP " + str(exc.code) + " — confira chave e cota"
-                except Exception:
-                    result = "Falha de rede ou serviço indisponível"
+                        response = brapi_quote(key, "PETR4")
+                    if isinstance(response, str) and response.strip():
+                        result = "Conversa real confirmada"
+                    elif response:
+                        result = "Conexão confirmada"
+                    else:
+                        raise ApiServiceError("O serviço respondeu, mas não retornou conteúdo.")
+                except ApiServiceError as exc:
+                    result = str(exc)[:360]
+                except Exception as exc:
+                    # Keep unexpected diagnostics useful without exposing secrets.
+                    result = "Falha inesperada (" + type(exc).__name__ + "). Consulte o log local."
                 self.root.after(0, lambda value=result, svc=service: api_status[svc].set(value))
             threading.Thread(target=worker, daemon=True).start()
 
