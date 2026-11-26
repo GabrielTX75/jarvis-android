@@ -47,6 +47,16 @@ class DashboardInterfaceTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, build_source)
 
+    def test_window_size_respects_available_screen_resolution(self):
+        init_source = ast.get_source_segment(
+            self.source,
+            next(node for node in ast.walk(self.tree)
+                 if isinstance(node, ast.FunctionDef) and node.name == "__init__"),
+        )
+        self.assertIn("root.winfo_screenwidth()", init_source)
+        self.assertIn("root.winfo_screenheight()", init_source)
+        self.assertIn('root.minsize(1024, 640)', init_source)
+
     def test_hero_animation_adapts_to_available_space(self):
         hero_source = ast.get_source_segment(self.source, self.methods["draw_core"])
         self.assertIn("canvas.winfo_width()", hero_source)
