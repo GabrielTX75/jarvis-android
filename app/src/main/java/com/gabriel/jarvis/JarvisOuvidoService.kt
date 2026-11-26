@@ -59,7 +59,13 @@ class JarvisOuvidoService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        iniciarPrimeiroPlano()
+        try {
+            iniciarPrimeiroPlano()
+        } catch (_: Exception) {
+            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (escuta == null) {
             escuta = Thread {
                 var tentativas = 0
@@ -78,6 +84,10 @@ class JarvisOuvidoService : Service() {
                 if (vivo && AudioTranscriber.modelo() != null) {
                     atualizarStatus("Ouvindo a palavra Jarvis…", true)
                     escutar()
+                } else if (vivo) {
+                    atualizarStatus("Não foi possível carregar o modelo de voz. A escuta foi pausada.", true)
+                    getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+                    stopSelf()
                 }
             }
             escuta?.start()
@@ -108,6 +118,7 @@ class JarvisOuvidoService : Service() {
             .setContentTitle("JARVIS em segundo plano")
             .setContentText(estado)
             .setStyle(Notification.BigTextStyle().bigText(estado))
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setOngoing(true)
             .setContentIntent(abrirApp(2, false))
             .build()
@@ -125,6 +136,9 @@ class JarvisOuvidoService : Service() {
 
     override fun onDestroy() {
         vivo = false
+        escuta?.interrupt()
+        sessao?.encerrar()
+        sessao = null
         super.onDestroy()
     }
 
@@ -136,11 +150,13 @@ class JarvisOuvidoService : Service() {
         val rec = Recognizer(modelo, 16000f)
         val buf = ByteArray(3200)
         var gravador: AudioRecord? = null
+        var falhasDeLeitura = 0
         try {
             while (vivo) {
                 if (tela || sessao != null || capturando) {
                     gravador?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
                     gravador = null
+                    falhasDeLeitura = 0
                     rec.reset()
                     Thread.sleep(500)
                     continue
@@ -158,16 +174,34 @@ class JarvisOuvidoService : Service() {
                         continue
                     }
                 }
-                val n = gravador!!.read(buf, 0, buf.size)
-                if (n <= 0) continue
-                val fechou = rec.acceptWaveForm(buf, n)
-                val texto = if (fechou) JSONObject(rec.result).optString("text", "")
-                else JSONObject(rec.partialResult).optString("partial", "")
-                if (texto.isNotBlank()) atualizarStatus("Ouvi: \"" + texto.take(80) + "\"")
-                if (PADRAO_JARVIS.containsMatchIn(semAcento(texto))) {
-                    rec.reset()
-                    atualizarStatus("Jarvis detectado!", true)
-                    aoOuvirJarvis()
+                val n = try { gravador!!.read(buf, 0, buf.size) } catch (_: Exception) { -1 }
+                when (AudioReadPolicy.decide(n)) {
+                    AudioReadDecision.PROCESS -> {
+                        falhasDeLeitura = 0
+                        val fechou = rec.acceptWaveForm(buf, n)
+                        val texto = if (fechou) JSONObject(rec.result).optString("text", "")
+                        else JSONObject(rec.partialResult).optString("partial", "")
+                        if (PADRAO_JARVIS.containsMatchIn(semAcento(texto))) {
+                            rec.reset()
+                            atualizarStatus("Jarvis detectado!", true)
+                            aoOuvirJarvis()
+                        }
+                    }
+                    AudioReadDecision.WAIT -> Thread.sleep(10)
+                    AudioReadDecision.RECOVER -> {
+                        falhasDeLeitura++
+                        atualizarStatus("Microfone interrompido; tentando reconectar…", true)
+                        gravador?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
+                        gravador = null
+                        rec.reset()
+                        if (falhasDeLeitura >= 3) {
+                            atualizarStatus("Escuta pausada por falha no microfone. Ative novamente nas configurações do JARVIS.", true)
+                            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+                            stopSelf()
+                            break
+                        }
+                        Thread.sleep(500L * falhasDeLeitura)
+                    }
                 }
             }
         } finally {
