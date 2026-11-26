@@ -53,6 +53,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private var ttsFailure: String? = null
     private var pendingSpeak: (() -> Unit)? = null
     private var pendingPermissionStart = false
+    private var pendingBackgroundListen = false
     private var listening = false
     private var lastUtteranceId = ""
     @Volatile private var aiConfigPromptOpen = false
@@ -69,9 +70,11 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     companion object {
         private const val REQ_AUDIO = 4102
         private const val REQ_NOTIF = 4103
+        private const val REQ_BACKGROUND_LISTEN = 4104
         private const val APP_HOST = "appassets.androidplatform.net"
         private const val APP_URL = "https://appassets.androidplatform.net/assets/index.html"
         private val SECRET_NAMES = setOf("busca_url", "busca_token", "ai_key", "groq_key", "gemini_key", "tavily_key", "brapi_key", "pin_hash", "picovoice_key")
+        private val JS_READABLE_SECRET_NAMES = setOf("busca_url", "pin_hash")
     }
 
     private val secretPrefs by lazy {
@@ -265,8 +268,8 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             }
         }
         @JavascriptInterface fun getSecret(name: String): String {
-            // A chave da IA é lida apenas pelo transporte nativo; nunca retorna ao JavaScript.
-            if (name !in SECRET_NAMES || name == "ai_key" || name == "groq_key") return ""
+            // Somente URL de busca e hash do PIN são lidos pela interface; tokens e chaves ficam no Kotlin.
+            if (name !in SECRET_NAMES || name !in JS_READABLE_SECRET_NAMES) return ""
             return try { secretPrefs.getString(name, "") ?: "" } catch (e: Exception) { "" }
         }
         @JavascriptInterface fun hasSecret(name: String): Boolean {
@@ -277,6 +280,12 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             submitAiRequest(messagesJson, requestId)
         }
         @JavascriptInterface fun cancelAI(requestId: String) {
+            cancelAiRequest(requestId)
+        }
+        @JavascriptInterface fun searchConfigured(query: String, requestId: String) {
+            submitSearchRequest(query, requestId)
+        }
+        @JavascriptInterface fun cancelSearch(requestId: String) {
             cancelAiRequest(requestId)
         }
 
@@ -368,19 +377,41 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         @JavascriptInterface fun picovoiceConfigurada(): Boolean = Cofre.ler(this@MainActivity, "picovoice_key").isNotEmpty()
         @JavascriptInterface fun ouvirSegundoPlanoAtivo(): Boolean = ouvirAtivo()
         @JavascriptInterface fun setOuvirSegundoPlano(on: Boolean): Boolean {
-            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", on).apply()
             runOnUiThread {
-                if (on) {
-                    if (Build.VERSION.SDK_INT >= 33 &&
-                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
-                    }
-                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO)
-                    }
-                    iniciarOuvirSeAtivo()
-                } else {
+                val prefs = getSharedPreferences("jarvis_ouvir", MODE_PRIVATE)
+                if (!on) {
+                    pendingBackgroundListen = false
+                    prefs.edit().putBoolean("ativo", false).apply()
                     stopService(Intent(this@MainActivity, JarvisOuvidoService::class.java))
+                    js("jarvisBackgroundListeningResult", "'off', " + JSONObject.quote("Escuta em segundo plano desligada."))
+                    return@runOnUiThread
+                }
+
+                val faltando = mutableListOf<String>()
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    faltando += Manifest.permission.RECORD_AUDIO
+                }
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    faltando += Manifest.permission.POST_NOTIFICATIONS
+                }
+
+                if (Manifest.permission.RECORD_AUDIO in faltando) {
+                    pendingBackgroundListen = true
+                    requestPermissions(faltando.toTypedArray(), REQ_BACKGROUND_LISTEN)
+                    js("jarvisBackgroundListeningResult", "'pending', " + JSONObject.quote("Aguardando permissão do microfone do Android."))
+                    return@runOnUiThread
+                }
+
+                if (Manifest.permission.POST_NOTIFICATIONS in faltando) {
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+                }
+                prefs.edit().putBoolean("ativo", true).apply()
+                if (iniciarOuvirSeAtivo()) {
+                    js("jarvisBackgroundListeningResult", "'on', " + JSONObject.quote("Escuta em segundo plano ativada."))
+                } else {
+                    prefs.edit().putBoolean("ativo", false).apply()
+                    js("jarvisBackgroundListeningResult", "'error', " + JSONObject.quote("O Android não permitiu iniciar a escuta. Confira a permissão do microfone."))
                 }
             }
             return true
@@ -546,6 +577,32 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         }
     }
 
+    private fun submitSearchRequest(query: String, requestId: String) {
+        val id = requestId.take(80)
+        if (!Regex("^[A-Za-z0-9_-]{1,80}$").matches(id) || !id.startsWith("search-")) {
+            nativeSearchResult(id, false, "", "Identificador de pesquisa inválido.")
+            return
+        }
+        if (query.isBlank() || query.length > 240) {
+            nativeSearchResult(id, false, "", "A consulta de pesquisa está vazia ou ultrapassa o limite.")
+            return
+        }
+        if (aiRequests.size >= 4) {
+            nativeSearchResult(id, false, "", "O JARVIS já está processando outras solicitações.")
+            return
+        }
+        val pending = AiRequest()
+        if (aiRequests.putIfAbsent(id, pending) != null) {
+            nativeSearchResult(id, false, "", "Identificador de pesquisa repetido.")
+            return
+        }
+        try { aiExecutor.execute { performSearchRequest(id, pending, query.trim()) } }
+        catch (_: Exception) {
+            aiRequests.remove(id, pending)
+            nativeSearchResult(id, false, "", "Não foi possível iniciar a pesquisa.")
+        }
+    }
+
     private fun cancelAiRequest(requestId: String) {
         val id = requestId.take(80)
         aiRequests[id]?.let {
@@ -567,6 +624,82 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                 output.write(buffer, 0, count)
             }
             return output.toString("UTF-8")
+        }
+    }
+
+    private fun cleanSearchField(value: String, limit: Int): String =
+        value.filter { !Character.isISOControl(it) }.replace(Regex("\\s+"), " ").trim().take(limit)
+
+    private fun isSafeSearchLink(value: String): Boolean = try {
+        val uri = Uri.parse(value)
+        (uri.scheme == "https" || uri.scheme == "http") &&
+            !uri.host.isNullOrBlank() && uri.userInfo == null
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun performSearchRequest(id: String, pending: AiRequest, query: String) {
+        var connection: HttpURLConnection? = null
+        try {
+            if (pending.cancelled.get()) return
+            val baseUrl = try { secretPrefs.getString("busca_url", "") ?: "" } catch (_: Exception) { "" }
+            val token = try { secretPrefs.getString("busca_token", "") ?: "" } catch (_: Exception) { "" }
+            if (baseUrl.isBlank() || token.isBlank()) {
+                throw IllegalArgumentException("Configure o servidor e o token da busca nas configurações.")
+            }
+            val validated = AiEndpointPolicy.validate(baseUrl)
+                ?: throw IllegalArgumentException("O endereço do servidor de busca não passou pela validação de segurança.")
+            val target = validated.normalized.trimEnd('/') + "/busca?q=" + Uri.encode(query)
+            connection = URL(target).openConnection() as? HttpURLConnection
+                ?: throw IllegalArgumentException("Tipo de conexão não permitido.")
+            pending.connection = connection
+            if (pending.cancelled.get()) return
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 20_000
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("X-Jarvis-Token", token)
+
+            val status = connection.responseCode
+            if (status in 300..399) {
+                throw IllegalArgumentException("O servidor de busca redirecionou a solicitação. Confira o endereço configurado.")
+            }
+            if (status !in 200..299) {
+                throw IllegalArgumentException("O servidor de busca respondeu HTTP " + status + ".")
+            }
+            val body = readBounded(connection.inputStream, 256_000)
+            val response = try { JSONObject(body) } catch (_: Exception) {
+                throw IllegalArgumentException("A resposta do servidor de busca não é um JSON válido.")
+            }
+            val resultados = response.optJSONArray("resultados") ?: JSONArray()
+            val linhas = ArrayList<String>()
+            for (index in 0 until minOf(resultados.length(), 5)) {
+                val item = resultados.optJSONObject(index) ?: continue
+                val titulo = cleanSearchField(item.optString("titulo", ""), 180)
+                val link = cleanSearchField(item.optString("link", ""), 500)
+                val trecho = cleanSearchField(item.optString("trecho", ""), 800)
+                if (titulo.isBlank() && link.isBlank() && trecho.isBlank()) continue
+                val linkSeguro = if (isSafeSearchLink(link)) link else ""
+                val linha = buildString {
+                    append(linhas.size + 1).append(". ").append(titulo.ifBlank { "Resultado sem título" })
+                    if (linkSeguro.isNotBlank()) append("\\n   Link: ").append(linkSeguro)
+                    if (trecho.isNotBlank()) append("\\n   Trecho: ").append(trecho)
+                }
+                linhas.add(linha)
+            }
+            if (linhas.isEmpty()) throw IllegalArgumentException("A busca não encontrou resultados.")
+            if (!pending.cancelled.get()) nativeSearchResult(id, true, linhas.joinToString("\\n"), null)
+        } catch (_: SocketTimeoutException) {
+            if (!pending.cancelled.get()) nativeSearchResult(id, false, "", "O servidor de busca demorou demais para responder.")
+        } catch (e: IllegalArgumentException) {
+            if (!pending.cancelled.get()) nativeSearchResult(id, false, "", e.message ?: "Configuração da busca inválida.")
+        } catch (_: Exception) {
+            if (!pending.cancelled.get()) nativeSearchResult(id, false, "", "Não foi possível concluir a pesquisa.")
+        } finally {
+            try { connection?.disconnect() } catch (_: Exception) {}
+            pending.connection = null
+            aiRequests.remove(id, pending)
         }
     }
 
@@ -686,11 +819,21 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
         js("jarvisNativeAIResult", args)
     }
 
+    private fun nativeSearchResult(id: String, ok: Boolean, text: String, error: String?) {
+        val errorArg = if (error == null) "null" else JSONObject.quote(error.take(240))
+        val args = JSONObject.quote(id) + ", " + ok + ", " +
+            JSONObject.quote(text.take(12_000)) + ", " + errorArg
+        js("jarvisNativeSearchResult", args)
+    }
+
     private fun cancelAllAiRequests(reason: String?) {
         for ((id, request) in aiRequests.entries.toList()) {
             request.cancelled.set(true)
             try { request.connection?.disconnect() } catch (_: Exception) {}
-            if (reason != null) nativeAiResult(id, false, "", "", reason)
+            if (reason != null) {
+                if (id.startsWith("search-")) nativeSearchResult(id, false, "", reason)
+                else nativeAiResult(id, false, "", "", reason)
+            }
         }
     }
 
@@ -843,7 +986,37 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_AUDIO && pendingPermissionStart) {
+        if (requestCode == REQ_BACKGROUND_LISTEN) {
+            val shouldStart = pendingBackgroundListen
+            pendingBackgroundListen = false
+            if (shouldStart) {
+                val prefs = getSharedPreferences("jarvis_ouvir", MODE_PRIVATE)
+                val microphoneGranted =
+                    checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                if (microphoneGranted) {
+                    prefs.edit().putBoolean("ativo", true).apply()
+                    if (iniciarOuvirSeAtivo()) {
+                        val notificationsGranted = Build.VERSION.SDK_INT < 33 ||
+                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                        val message = if (notificationsGranted) {
+                            "Escuta em segundo plano ativada."
+                        } else {
+                            "Escuta ativada. O Android bloqueou notificações; confira os apps ativos para ver o serviço."
+                        }
+                        js("jarvisBackgroundListeningResult", "'on', " + JSONObject.quote(message))
+                    } else {
+                        prefs.edit().putBoolean("ativo", false).apply()
+                        js("jarvisBackgroundListeningResult", "'error', " +
+                            JSONObject.quote("O Android não permitiu iniciar a escuta. Confira as permissões e tente novamente."))
+                    }
+                } else {
+                    prefs.edit().putBoolean("ativo", false).apply()
+                    stopService(Intent(this, JarvisOuvidoService::class.java))
+                    js("jarvisBackgroundListeningResult", "'off', " +
+                        JSONObject.quote("Permissão do microfone negada. A escuta em segundo plano não foi ativada."))
+                }
+            }
+        } else if (requestCode == REQ_AUDIO && pendingPermissionStart) {
             pendingPermissionStart = false
             if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
             else js("jarvisNativeError", "'Permissão do microfone negada. Libere nas configurações do Android.' , 'permission'")
@@ -870,9 +1043,19 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
     private fun ouvirAtivo(): Boolean =
         getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).getBoolean("ativo", false)
 
-    private fun iniciarOuvirSeAtivo() {
-        if (!ouvirAtivo()) return
-        try { ContextCompat.startForegroundService(this, Intent(this, JarvisOuvidoService::class.java)) } catch (_: Exception) {}
+    private fun iniciarOuvirSeAtivo(): Boolean {
+        if (!ouvirAtivo()) return false
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+            return false
+        }
+        return try {
+            ContextCompat.startForegroundService(this, Intent(this, JarvisOuvidoService::class.java))
+            true
+        } catch (_: Exception) {
+            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+            false
+        }
     }
 
     override fun onDestroy() {
