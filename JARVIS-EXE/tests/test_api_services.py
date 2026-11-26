@@ -92,6 +92,23 @@ class ApiServiceTests(unittest.TestCase):
         self.assertIn(":generateContent", request.full_url)
         self.assertEqual(request.get_method(), "POST")
 
+    @patch("api_services.urllib.request.urlopen")
+    def test_ollama_chat_uses_localhost_and_returns_response(self, mocked):
+        mocked.return_value = FakeResponse({"message": {"content": "Olá local"}})
+        answer = api_services.ollama_chat(
+            [{"role": "user", "content": "Oi"}], model="llama3.2:3b"
+        )
+        self.assertEqual(answer, "Olá local")
+        request = mocked.call_args.args[0]
+        self.assertEqual(request.full_url, "http://127.0.0.1:11434/api/chat")
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertFalse(payload["stream"])
+        self.assertEqual(payload["model"], "llama3.2:3b")
+
+    def test_ollama_rejects_non_local_endpoint(self):
+        with self.assertRaises(api_services.ApiServiceError):
+            api_services.ollama_chat([], endpoint="https://example.com")
+
     def test_tavily_rejects_missing_key_and_empty_query(self):
         with self.assertRaises(api_services.ApiServiceError):
             api_services.tavily_search("", "test")
