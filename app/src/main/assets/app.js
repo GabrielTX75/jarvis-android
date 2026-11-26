@@ -168,7 +168,7 @@ async function nativeToolCommand(raw){
  const abrir=t.match(/^(?:jarvis )?(?:abra|abrir|abre|inicie|iniciar)\s+([^\s]+(?:\s+[^\s]+){0,2})$/i);
  if(abrir){const r=await callNativeAction("openAppByName",abrir[1].trim());return r.message||(r.ok?"Aberto.":"Não consegui abrir.")}
  const search=t.match(/^(?:jarvis )?(?:pesquise|pesquisar|pesquisa|procure|buscar|busque)(?: na internet| no google| na web)?\s+(.{2,240})$/i);
- if(search&&!(BUSCA_LOCAL.url&&BUSCA_LOCAL.token)){const query=search[1].trim();if(!query)return "Diga o que devo pesquisar.";const result=await callNativeAction("searchWeb",query);return result.ok?"Pesquisa aberta no navegador para: "+query:result.message||"Não consegui abrir a pesquisa."}
+ if(search&&!buscaConfigurada()){const query=search[1].trim();if(!query)return "Diga o que devo pesquisar.";const result=await callNativeAction("searchWeb",query);return result.ok?"Pesquisa aberta no navegador para: "+query:result.message||"Não consegui abrir a pesquisa."}
  return null;
 }
 
@@ -348,22 +348,48 @@ function seriousVoiceCommand(text){
 const STOP_BUSCA=new Set(["o","a","os","as","um","uma","de","do","da","dos","das","em","no","na","nos","nas","e","ou","que","qual","quais","quem","como","quando","onde","por","para","pra","pro","com","sobre","me","te","se","sou","é","eu","você","voce","jarvis","ta","tá","fala","diga","pesquisa","pesquise","busca","busque"]);
 function consultaDe(t){const p=t.toLowerCase().replace(/[?!.,;:]/g," ").split(/\s+/).filter(w=>w&&!STOP_BUSCA.has(w));return p.slice(0,6).join(" ")||t.slice(0,80)}
 function precisaBusca(t){return /(hoje|agora|atual|atualmente|últim|ultim|notícia|noticia|preço|preco|cotação|cotacao|placar|clima|previsão|previsao|quem é|quem e |quando é|quando e |pesquis|busca|na internet|na web|2026|2025)/i.test(t)}
-const BUSCA_LOCAL={url:lerSegredo("busca_url"),token:lerSegredo("busca_token")};try{localStorage.removeItem("jv_busca")}catch{}
-function saveBusca(){gravarSegredo("busca_url",BUSCA_LOCAL.url);gravarSegredo("busca_token",BUSCA_LOCAL.token)}
-async function pesquisar(texto){
- const url=String(BUSCA_LOCAL.url||"").trim().replace(/\/+$/,""),token=String(BUSCA_LOCAL.token||"").trim();
- if(!ANDROID)return{erro:"A busca na web só funciona no app, com o servidor configurado."};
- if(!/^https:\/\//.test(url)||!token)return{erro:"Configure o servidor e a senha da busca em ⚙ para pesquisar na internet."};
- try{
-  const r=await fetch(url+"/busca?q="+encodeURIComponent(consultaDe(texto)),{headers:{"X-Jarvis-Token":token},signal:AbortSignal.timeout?AbortSignal.timeout(20000):undefined});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok)return{erro:"A busca recusou o pedido ("+(d.erro||r.status)+")."};
-  const lista=Array.isArray(d.resultados)?d.resultados:[];
-  if(!lista.length)return{erro:"A busca não encontrou resultados para isso."};
-  return{texto:lista.slice(0,5).map((x,i)=>(i+1)+". "+x.titulo+"\n   Link: "+x.link+"\n   Trecho: "+x.trecho).join("\n")};
- }catch{return{erro:"Não consegui falar com o servidor de busca. Confira a internet e o endereço."}}
+const BUSCA_LOCAL={url:lerSegredo("busca_url"),token:""};
+let buscaTokenDirty=false;
+function buscaConfigurada(){return ANDROID&&!!BUSCA_LOCAL.url&&temSegredo("busca_token")}
+function saveBusca(){
+ gravarSegredo("busca_url",BUSCA_LOCAL.url);
+ if(buscaTokenDirty)gravarSegredo("busca_token",BUSCA_LOCAL.token);
 }
-(function initBusca(){const go=()=>{const u=$("#buscaUrl"),t=$("#buscaToken");if(!u||!t)return;u.oninput=e=>{BUSCA_LOCAL.url=e.target.value.trim();saveBusca()};t.oninput=e=>{BUSCA_LOCAL.token=e.target.value.trim();saveBusca()}};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go()})();
+let nativeSearchSeq=0;
+const nativeSearchPending=new Map();
+window.jarvisNativeSearchResult=(id,ok,text,error)=>{
+ const pending=nativeSearchPending.get(String(id));if(!pending)return;
+ nativeSearchPending.delete(String(id));clearTimeout(pending.timeout);
+ pending.resolve(ok?{texto:String(text||"")}:{erro:String(error||"Não consegui pesquisar na internet.")});
+};
+function requestNativeSearch(query){
+ return new Promise(resolve=>{
+  const id="search-"+(++nativeSearchSeq)+"-"+Date.now();
+  const timeout=setTimeout(()=>{
+   if(!nativeSearchPending.has(id))return;
+   nativeSearchPending.delete(id);
+   try{window.JarvisAndroid.cancelSearch(id)}catch{}
+   resolve({erro:"A pesquisa demorou demais. Tente novamente."});
+  },25000);
+  nativeSearchPending.set(id,{resolve,timeout});
+  try{window.JarvisAndroid.searchConfigured(query,id)}
+  catch{clearTimeout(timeout);nativeSearchPending.delete(id);resolve({erro:"Não foi possível iniciar a pesquisa no Android."})}
+ });
+}
+async function pesquisar(texto){
+ if(!ANDROID)return{erro:"A busca na web só funciona no app, com o servidor configurado."};
+ if(!buscaConfigurada())return{erro:"Configure o servidor e a senha da busca em ⚙ para pesquisar na internet."};
+ return requestNativeSearch(consultaDe(texto));
+}
+(function initBusca(){const go=()=>{
+ const u=$("#buscaUrl"),t=$("#buscaToken");if(!u||!t)return;
+ u.oninput=e=>{BUSCA_LOCAL.url=e.target.value.trim();saveBusca()};
+ t.onchange=e=>{
+  BUSCA_LOCAL.token=e.target.value.trim();buscaTokenDirty=true;saveBusca();
+  buscaTokenDirty=false;BUSCA_LOCAL.token="";t.value="";
+  t.placeholder=temSegredo("busca_token")?"Token salvo — digite para substituir":"Senha do servidor";
+ };
+};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go()})();
 const COFRE={tentativas:0,bloqueadoAte:0};
 const b64=u=>btoa(String.fromCharCode(...u));
 const deb64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
@@ -375,7 +401,7 @@ const API_VAULT_FIELDS={groq:"apikey",gemini:"apiGemini",tavily:"apiTavily",brap
 const API_VAULT_NAMES={groq:"groq_key",gemini:"gemini_key",tavily:"tavily_key",brapi:"brapi_key"};
 function preencherCofre(){
  $("#apikey").value="";$("#apiGemini").value="";$("#apiTavily").value="";$("#apiBrapi").value="";
- $("#buscaUrl").value=BUSCA_LOCAL.url||"";$("#buscaToken").value=BUSCA_LOCAL.token||"";
+ $("#buscaUrl").value=BUSCA_LOCAL.url||"";$("#buscaToken").value="";$("#buscaToken").placeholder=temSegredo("busca_token")?"Token salvo — digite para substituir":"Senha do servidor";
  for(const [id,name] of Object.entries(API_VAULT_NAMES)){const ok=temSegredo(name)||(id==="groq"&&temSegredo("ai_key")),el=$("#apiStatus"+id[0].toUpperCase()+id.slice(1));if(el)el.textContent=ok?"Chave salva":"Não configurada"}
 }
 function limparCofre(){$("#apikey").value="";$("#apiGemini").value="";$("#apiTavily").value="";$("#apiBrapi").value="";$("#buscaUrl").value="";$("#buscaToken").value="";$("#pinEntrar").value="";$("#pinNovo").value="";$("#pinRepete").value=""}
@@ -423,6 +449,11 @@ if(ANDROID){limparCofre();mostrarGate()}else{$("#cofreGate").style.display="none
 async function mostrarNovidades(){const box=$("#novidadesBox");if(!box)return;box.textContent="Carregando...";try{const r=await fetch("https://appassets.androidplatform.net/assets/novidades.json");const d=await r.json();let v="";try{v=window.JarvisAndroid.versao()}catch{}box.textContent="";const t=document.createElement("div");t.style.cssText="font-size:12px;color:var(--dim);margin-top:8px";t.textContent="Versão instalada: "+(v||"desconhecida");box.appendChild(t);d.versoes.forEach(x=>{const h=document.createElement("div");h.style.cssText="margin-top:10px;font-size:13px;font-weight:bold";h.textContent="Versão "+x.versao+" ("+x.data+")";box.appendChild(h);x.itens.forEach(i=>{const p=document.createElement("div");p.style.cssText="font-size:12px;margin-left:8px";p.textContent="• "+i;box.appendChild(p)})})}catch(e){box.textContent="Não consegui carregar as novidades."}}
 function mostrarCodigos(){const box=$("#codigosBox");if(!box)return;box.textContent="";let lista=[];try{lista=JSON.parse(window.JarvisAndroid.codigos())}catch{box.textContent="Não consegui ler os códigos.";return}if(!lista.length){box.textContent="Nenhum código gerado ainda.";return}lista.forEach(c=>{const d=document.createElement("div");d.style.cssText="margin-top:10px;font-size:12px;border-top:1px solid var(--dim);padding-top:6px";const pct=c.percentual>=0?c.percentual+"%":"em andamento";d.textContent=c.nome+" — "+c.linhas+" linhas — "+pct;box.appendChild(d);if(c.pronto){const b=document.createElement("button");b.type="button";b.textContent="Copiar código";b.onclick=()=>{let ok=false;try{ok=window.JarvisAndroid.copiarCodigo(c.caminho)}catch{}b.textContent=ok?"Copiado":"Não consegui copiar (arquivo grande demais). Ele está em Downloads/JARVIS"};d.appendChild(b)}})}
 function refreshPv(){const st=$("#pvStatus");if(!st||!window.JarvisAndroid)return;let at=false;try{at=!!window.JarvisAndroid.ouvirSegundoPlanoAtivo()}catch{}st.textContent="Escuta em segundo plano: "+(at?"ligada":"desligada")+".";const ac=$("#pvAcessStatus");if(ac){let lig=false;try{lig=!!window.JarvisAndroid.acessibilidadeLigada()}catch{}ac.textContent="Colagem no Pydroid 3 (acessibilidade): "+(lig?"ligada":"desligada")+"."}}
+window.jarvisBackgroundListeningResult=(state,message)=>{
+ const box=$("#pvAtivo"),status=$("#pvStatus");
+ if(box)box.checked=state==="on"||state==="pending";
+ if(status)status.textContent=String(message||"");
+};
 window.jarvisWake=()=>{if(!S.active&&!S.speaking&&!S.busy)start()};
 function refreshWpp(){const st=$("#wppStatus");if(!st)return;let acesso=false;try{acesso=!!window.JarvisAndroid.notificationAccessEnabled()}catch{}let arq=true;try{arq=!!window.JarvisAndroid.allFilesAccessEnabled()}catch{}st.textContent=(acesso?"Notificações: permitidas. ":"Notificações: não permitidas. ")+(arq?"Áudios: permitidos. ":"Áudios: não permitidos. ")+(S.wppAuto?"Resposta automática ligada.":"Resposta automática desligada.")}
 const wppRecentes=new Map();
@@ -594,7 +625,7 @@ renderSerious();$("#provider").value=S.provider;$("#endpoint").value=S.endpoint;
   $("#vmsg").textContent="A chave fica apenas nesta sessão e é enviada ao endpoint configurado. Para uso público, use um backend HTTPS; não compartilhe o APK com uma chave embutida.";
  }
 };if(ANDROID){const wa=$("#wppAuto");wa.checked=S.wppAuto===true;wa.onchange=e=>{S.wppAuto=e.target.checked;saveSet();refreshWpp()};const wn=$("#wppNome");wn.value=S.wppNome||"";wn.onchange=e=>{S.wppNome=e.target.value.trim();saveSet()};$("#wppAccess").onclick=()=>{try{window.JarvisAndroid.openNotificationAccess()}catch{}};$("#wppArquivos").onclick=()=>{try{window.JarvisAndroid.openAllFilesAccess()}catch{}};refreshWpp()}else{$("#wppBox").style.display="none"}
-if(ANDROID){const pa=$("#pvAtivo");try{pa.checked=!!window.JarvisAndroid.ouvirSegundoPlanoAtivo()}catch{}pa.onchange=e=>{let ok=false;try{ok=!!window.JarvisAndroid.setOuvirSegundoPlano(e.target.checked)}catch{}if(!ok&&e.target.checked){e.target.checked=false}refreshPv()};$("#pvOverlay").onclick=()=>{try{window.JarvisAndroid.abrirPermissaoOverlay()}catch{}};$("#pvAcess").onclick=()=>{try{window.JarvisAndroid.abrirAcessibilidade()}catch{}};$("#verNovidades").onclick=mostrarNovidades;$("#verCodigos").onclick=mostrarCodigos;refreshPv()}
+if(ANDROID){const pa=$("#pvAtivo");try{pa.checked=!!window.JarvisAndroid.ouvirSegundoPlanoAtivo()}catch{}pa.onchange=e=>{let ok=false;try{ok=!!window.JarvisAndroid.setOuvirSegundoPlano(e.target.checked)}catch{}if(!ok&&e.target.checked){e.target.checked=false;refreshPv()}else if(e.target.checked){$("#pvStatus").textContent="Aguardando permissão do Android..."}else refreshPv()};$("#pvOverlay").onclick=()=>{try{window.JarvisAndroid.abrirPermissaoOverlay()}catch{}};$("#pvAcess").onclick=()=>{try{window.JarvisAndroid.abrirAcessibilidade()}catch{}};$("#verNovidades").onclick=mostrarNovidades;$("#verCodigos").onclick=mostrarCodigos;refreshPv()}
 $("#tier").value=S.tier;$("#tier").onchange=e=>{S.tier=e.target.value;saveSet()};$("#cont").checked=S.cont;$("#al").checked=S.listenAuto;$("#auto").checked=S.auto;$("#rate").value=S.rate;$("#pitch").value=S.pitch;$("#barge").checked=S.barge;setGender(S.gender,false);
 function setMode(m,u){S.mode=m;document.body.classList.toggle("fala",m==="fala");$("#mf").classList.toggle("on",m==="fala");$("#me").classList.toggle("on",m!=="fala");if(m==="fala"){S.auto=true;S.cont=true;$("#auto").checked=true;$("#cont").checked=true;if(u&&$("#lock").style.display!=="flex")start()}saveSet()}
 $("#mf").onclick=()=>setMode("fala",true);$("#me").onclick=()=>setMode("escrever",true);setMode(S.mode==="fala"?"fala":"escrever",false);
