@@ -55,6 +55,28 @@ def _request(url, *, method="GET", headers=None, payload=None, timeout=18):
         raise ApiServiceError("O serviço demorou ou retornou dados inválidos.") from None
 
 
+def ollama_chat(messages, model="llama3.2:3b", endpoint="http://127.0.0.1:11434"):
+    """Run a chat locally through Ollama; prompts stay on this computer."""
+    endpoint = str(endpoint or "").rstrip("/")
+    if not endpoint.startswith(("http://127.0.0.1", "http://localhost")):
+        raise ApiServiceError("A IA local só pode usar localhost por segurança.")
+    if not model or len(model) > 100:
+        raise ApiServiceError("Informe um modelo Ollama válido.")
+    payload_messages = []
+    for item in messages[-24:]:
+        role = item.get("role")
+        if role in ("system", "user", "assistant"):
+            payload_messages.append({"role": role, "content": str(item.get("content", ""))[:12000]})
+    data = _request(endpoint + "/api/chat", method="POST",
+        headers={"Content-Type": "application/json"},
+        payload={"model": model, "messages": payload_messages, "stream": False},
+        timeout=180)
+    answer = data.get("message", {}).get("content", "")
+    if not isinstance(answer, str) or not answer.strip():
+        raise ApiServiceError("O Ollama respondeu sem conteúdo. Confira se o modelo foi baixado.")
+    return answer
+
+
 def tavily_search(api_key, query, max_results=5):
     query = str(query or "").strip()
     if not api_key:
