@@ -170,192 +170,235 @@ class JarvisApp:
         CONFIG_FILE.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def panel(self, parent, title=None, padding=12):
-        box = tk.Frame(parent, bg=PANEL, padx=padding, pady=padding,
-                       highlightthickness=1, highlightbackground="#174763")
+        box = tk.Frame(
+            parent, bg=PANEL, padx=padding, pady=padding,
+            highlightthickness=1, highlightbackground="#153b54"
+        )
         if title:
-            tk.Label(box, text=title.upper(), bg=PANEL, fg=CYAN,
-                     font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 9))
+            tk.Label(
+                box, text=title.upper(), bg=PANEL, fg="#8edff4",
+                font=("Segoe UI", 8, "bold")
+            ).pack(anchor="w", pady=(0, 10))
         return box
 
     def button(self, parent, text, command, accent=False, compact=False):
-        return tk.Button(
+        normal = "#087da4" if accent else "#102d43"
+        hover = "#0b9bc8" if accent else "#19425d"
+        widget = tk.Button(
             parent, text=text, command=command, cursor="hand2",
-            bg=("#075d85" if accent else "#0b2b43"),
-            fg=TEXT, activebackground=("#087eaa" if accent else "#124361"),
-            activeforeground="white", relief="flat", bd=0,
-            padx=(10 if compact else 13), pady=(7 if compact else 10),
-            font=("Segoe UI", 9, "bold"), anchor="w"
+            bg=normal, fg="#effaff", activebackground=hover,
+            activeforeground="#ffffff", relief="flat", bd=0,
+            padx=(11 if compact else 15), pady=(7 if compact else 10),
+            font=("Segoe UI", 8 if compact else 9, "bold"),
+            anchor="w", highlightthickness=1,
+            highlightbackground=("#159ac0" if accent else "#1a4059"),
+            highlightcolor="#35d9ff"
         )
+        widget.bind("<Enter>", lambda _e, w=widget, c=hover: w.configure(bg=c))
+        widget.bind("<Leave>", lambda _e, w=widget, c=normal: w.configure(bg=c))
+        return widget
 
     def _build(self):
         self._styles()
-        header = tk.Frame(self.root, bg="#061625", padx=18, pady=10,
-                          highlightthickness=1, highlightbackground="#16445d")
+        self.root.configure(bg=BG)
+
+        # Top bar: brand, live state and clock.
+        header = tk.Frame(
+            self.root, bg="#061522", padx=22, pady=13,
+            highlightthickness=1, highlightbackground="#15384f"
+        )
         header.pack(fill="x")
-        brand = tk.Frame(header, bg="#061625")
+        brand = tk.Frame(header, bg="#061522")
         brand.pack(side="left")
-        tk.Label(brand, text="◈  J A R V I S", bg="#061625", fg=CYAN,
-                 font=("Segoe UI", 23, "bold")).pack(anchor="w")
-        tk.Label(brand, text="PERSONAL INTELLIGENCE • COMMAND SYSTEM",
-                 bg="#061625", fg=MUTED, font=("Segoe UI", 8, "bold")).pack(anchor="w")
-        center = tk.Frame(header, bg="#061625")
-        center.pack(side="left", expand=True)
-        self.status_label = tk.Label(center, textvariable=self.status, bg="#08283a",
-                                     fg=GREEN, font=("Segoe UI", 10, "bold"),
-                                     padx=20, pady=8, highlightthickness=1,
-                                     highlightbackground="#14627d")
-        self.status_label.pack()
-        right = tk.Frame(header, bg="#061625")
-        right.pack(side="right")
-        self.clock = tk.Label(right, text="--:--:--", bg="#061625", fg=TEXT,
-                              font=("Segoe UI", 18, "bold"))
+        mark = tk.Canvas(brand, width=38, height=38, bg="#061522", highlightthickness=0)
+        mark.pack(side="left", padx=(0, 10))
+        mark.create_oval(3, 3, 35, 35, outline=CYAN, width=2)
+        mark.create_oval(10, 10, 28, 28, outline=BLUE, width=1)
+        mark.create_text(19, 19, text="J", fill=TEXT, font=("Segoe UI", 17, "bold"))
+        identity = tk.Frame(brand, bg="#061522")
+        identity.pack(side="left")
+        tk.Label(identity, text="JARVIS", bg="#061522", fg=TEXT,
+                 font=("Segoe UI", 19, "bold")).pack(anchor="w")
+        tk.Label(identity, text="PERSONAL COMMAND SYSTEM",
+                 bg="#061522", fg=MUTED, font=("Segoe UI", 7, "bold")).pack(anchor="w")
+
+        live = tk.Frame(header, bg="#061522")
+        live.pack(side="left", expand=True, padx=30)
+        self.status_label = tk.Label(
+            live, textvariable=self.status, bg="#092b3b", fg=GREEN,
+            font=("Segoe UI", 9, "bold"), padx=16, pady=7,
+            highlightthickness=1, highlightbackground="#15516a"
+        )
+        self.status_label.pack(anchor="center")
+        tk.Label(live, textvariable=self.connection, bg="#061522", fg=MUTED,
+                 font=("Segoe UI", 8)).pack(pady=(4, 0))
+
+        right_header = tk.Frame(header, bg="#061522")
+        right_header.pack(side="right")
+        self.clock = tk.Label(right_header, text="--:--:--", bg="#061522",
+                              fg=TEXT, font=("Segoe UI", 17, "bold"))
         self.clock.pack(anchor="e")
-        self.date_label = tk.Label(right, text="", bg="#061625", fg=MUTED,
-                                   font=("Segoe UI", 8))
+        self.date_label = tk.Label(right_header, text="", bg="#061522",
+                                   fg=MUTED, font=("Segoe UI", 8))
         self.date_label.pack(anchor="e")
-        tk.Label(right, textvariable=self.access_mode_state, bg="#061625", fg=CYAN, font=("Segoe UI", 8, "bold")).pack(anchor="e")
+        tk.Label(right_header, textvariable=self.access_mode_state,
+                 bg="#061522", fg=CYAN, font=("Segoe UI", 7, "bold")).pack(anchor="e", pady=(3, 0))
 
-        nav = tk.Frame(self.root, bg="#071b2b", padx=14, pady=7)
-        nav.pack(fill="x")
-        for label, action in [
-            ("⌂  INÍCIO", self.focus_chat), ("✧  IA", self.focus_chat),
-            ("▣  PROJETOS", self.new_project), ("⬡  SEGURANÇA", self.open_security_lab),
-            ("⌘  CONTROLE", self.tools), ("⚙  CONFIGURAÇÕES", self.settings)
-        ]:
-            self.button(nav, label, action, compact=True).pack(side="left", padx=4)
-
+        # Three-column workspace with clear hierarchy and less visual noise.
         shell = tk.Frame(self.root, bg=BG)
-        shell.pack(fill="both", expand=True, padx=10, pady=10)
-        shell.grid_columnconfigure(0, minsize=250, weight=0)
+        shell.pack(fill="both", expand=True, padx=14, pady=12)
+        shell.grid_columnconfigure(0, minsize=218, weight=0)
         shell.grid_columnconfigure(1, weight=1)
-        shell.grid_columnconfigure(2, minsize=260, weight=0)
+        shell.grid_columnconfigure(2, minsize=236, weight=0)
         shell.grid_rowconfigure(0, weight=1)
 
-        left = tk.Frame(shell, bg=BG)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        modules = self.panel(left, "Módulos do JARVIS", 11)
+        sidebar = tk.Frame(shell, bg=BG)
+        sidebar.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        nav_card = self.panel(sidebar, "Navegação", 12)
+        nav_card.pack(fill="x", pady=(0, 10))
+        for label, action in [
+            ("⌂   Visão geral", self.focus_chat),
+            ("✧   Conversar com IA", self.focus_chat),
+            ("▣   Projetos e código", self.new_project),
+            ("⌘   Controle do PC", self.tools),
+            ("⬡   Segurança defensiva", self.open_security_lab),
+            ("⚙   Configurações", self.settings),
+        ]:
+            self.button(nav_card, label, action, compact=True).pack(fill="x", pady=3)
+
+        modules = self.panel(sidebar, "Seus módulos", 12)
         modules.pack(fill="both", expand=True)
         module_items = [
-            ("▣  Controle do computador", self.tools),
-            ("▦  Criar / gerenciar projetos", self.new_project),
-            ("⌕  Auditoria de projetos", self.audit_local),
-            ("⬡  Security Lab", self.open_security_lab),
-            ("◉  Monitoramento defensivo", self.open_security_lab),
-            ("◈  JARVIS Money", self.open_money_lab),
-            ("➤  JARVIS Drive", self.drive),
-            ("⌘  Geração de códigos", self.focus_chat),
-            ("◇  Hologram Lab 3D", self.open_hologram_lab),
-            ("▤  Arquivos e notas", self.open_projects_folder),
-            ("⚙  Configurações", self.settings)
+            ("Auditoria de projetos", self.audit_local),
+            ("Security Lab", self.open_security_lab),
+            ("JARVIS Money", self.open_money_lab),
+            ("JARVIS Drive", self.drive),
+            ("Laboratório 3D", self.open_hologram_lab),
+            ("Arquivos e projetos", self.open_projects_folder),
+            ("Lembretes", self.open_reminders),
+            ("Memória local", self.manage_memory),
         ]
-        for label, command in module_items:
-            self.button(modules, label, command, compact=True).pack(fill="x", pady=3)
-        tk.Label(modules, text="Módulos externos e integrações aparecem como desconectados até serem configurados.",
-                 bg=PANEL, fg=MUTED, wraplength=210, justify="left",
-                 font=("Segoe UI", 8)).pack(anchor="w", pady=(10, 0))
+        for label, action in module_items:
+            self.button(modules, label, action, compact=True).pack(fill="x", pady=2)
+        tk.Label(
+            modules, text="Os módulos indicam recursos disponíveis. Integrações externas só aparecem como conectadas quando configuradas.",
+            bg=PANEL, fg=MUTED, wraplength=184, justify="left",
+            font=("Segoe UI", 7)
+        ).pack(anchor="w", pady=(12, 0))
 
-        center_col = tk.Frame(shell, bg=BG)
-        center_col.grid(row=0, column=1, sticky="nsew", padx=5)
-        center_col.grid_rowconfigure(0, weight=4)
-        center_col.grid_rowconfigure(1, weight=3)
-        center_col.grid_columnconfigure(0, weight=1)
+        center = tk.Frame(shell, bg=BG)
+        center.grid(row=0, column=1, sticky="nsew", padx=2)
+        center.grid_columnconfigure(0, weight=1)
+        center.grid_rowconfigure(1, weight=1)
 
-        hero = tk.Frame(center_col, bg="#041321", highlightthickness=1,
-                        highlightbackground="#16749a")
-        hero.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
+        hero = tk.Frame(
+            center, bg="#041522", height=176,
+            highlightthickness=1, highlightbackground="#17617c"
+        )
+        hero.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        hero.grid_propagate(False)
         hero.grid_columnconfigure(0, weight=1)
         hero.grid_rowconfigure(0, weight=1)
-        self.hero = tk.Canvas(hero, bg="#041321", highlightthickness=0)
+        self.hero = tk.Canvas(hero, bg="#041522", highlightthickness=0, height=176)
         self.hero.grid(row=0, column=0, sticky="nsew")
         self.hero.bind("<Configure>", lambda _e: self.draw_core())
         self.hero.bind("<Button-1>", lambda _e: self.focus_chat())
         self.hero_phase = 0
 
-        chat_panel = self.panel(center_col, None, 10)
+        chat_panel = self.panel(center, None, 12)
         chat_panel.grid(row=1, column=0, sticky="nsew")
         chat_panel.grid_rowconfigure(1, weight=1)
         chat_panel.grid_columnconfigure(0, weight=1)
         chat_header = tk.Frame(chat_panel, bg=PANEL)
-        chat_header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        chat_header.grid(row=0, column=0, sticky="ew", pady=(0, 9))
         chat_header.grid_columnconfigure(0, weight=1)
-        tk.Label(chat_header, text="CONVERSA COM O JARVIS", bg=PANEL, fg=CYAN,
-                 font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+        tk.Label(chat_header, text="CONVERSA", bg=PANEL, fg=CYAN,
+                 font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
         tk.Label(chat_header, text="AGENTE", bg=PANEL, fg=MUTED,
-                 font=("Segoe UI", 8, "bold")).grid(row=0, column=1, padx=(8, 4))
-        self.agent_picker = ttk.Combobox(chat_header, textvariable=self.agent_var,
-                                         values=agent_names(), state="readonly", width=14)
+                 font=("Segoe UI", 7, "bold")).grid(row=0, column=1, padx=(8, 5))
+        self.agent_picker = ttk.Combobox(
+            chat_header, textvariable=self.agent_var, values=agent_names(),
+            state="readonly", width=15, style="Jarvis.TCombobox"
+        )
         self.agent_picker.grid(row=0, column=2, sticky="e")
-        self.chat = tk.Text(chat_panel, bg="#041321", fg=TEXT, insertbackground=TEXT,
-                            wrap="word", font=("Segoe UI", 9), relief="flat",
-                            padx=12, pady=10, state="disabled", height=8)
-        self.chat.grid(row=1, column=0, sticky="nsew")
-        self.chat.tag_configure("speaker", foreground=CYAN, font=("Segoe UI", 9, "bold"))
-        self.chat.tag_configure("error", foreground=RED)
-        input_row = tk.Frame(chat_panel, bg=PANEL)
-        input_row.grid(row=2, column=0, sticky="ew", pady=(9, 0))
-        input_row.grid_columnconfigure(0, weight=1)
-        self.entry = tk.Entry(input_row, bg="#09243a", fg=TEXT, insertbackground=TEXT,
-                              relief="flat", font=("Segoe UI", 10))
-        self.entry.grid(row=0, column=0, sticky="ew", ipady=9, padx=(0, 7))
-        self.entry.bind("<Return>", lambda _e: self.send())
-        self.voice_button = self.button(input_row, "🎙 INICIAR ESCUTA", self.listen, compact=True)
-        self.voice_button.grid(row=0, column=1, padx=3)
-        self.voice_state = tk.StringVar(value="MICROFONE PRONTO • ÁUDIO ENVIADO AO GOOGLE")
-        tk.Label(chat_panel, textvariable=self.voice_state, bg=PANEL, fg=MUTED,
-                 font=("Segoe UI", 8, "bold")).grid(row=3, column=0, sticky="w", pady=(6, 0))
-        self.button(input_row, "ENVIAR ➤", self.send, accent=True, compact=True).grid(row=0, column=2, padx=3)
 
-        quick = tk.Frame(center_col, bg=BG)
-        quick.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        quick_actions = [
-            ("🎙 VOZ", self.listen), ("▶ EXECUTAR FERRAMENTA", self.tools),
-            ("✧ IA AVANÇADA", self.settings), ("⬡ SECURITY LAB", self.open_security_lab),
-            ("🛡 DEFESA", self.open_security_lab)
-        ]
-        for i, (label, action) in enumerate(quick_actions):
-            quick.grid_columnconfigure(i, weight=1)
-            self.button(quick, label, action, accent=(i == 0), compact=True).grid(
-                row=0, column=i, sticky="ew", padx=2)
+        transcript = tk.Frame(chat_panel, bg="#041321")
+        transcript.grid(row=1, column=0, sticky="nsew")
+        transcript.grid_rowconfigure(0, weight=1)
+        transcript.grid_columnconfigure(0, weight=1)
+        self.chat = tk.Text(
+            transcript, bg="#041321", fg=TEXT, insertbackground=TEXT,
+            wrap="word", font=("Segoe UI", 9), relief="flat",
+            padx=15, pady=13, state="disabled", height=10,
+            borderwidth=0, selectbackground="#15516a"
+        )
+        self.chat.grid(row=0, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(transcript, orient="vertical", command=self.chat.yview,
+                               style="Jarvis.Vertical.TScrollbar")
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.chat.configure(yscrollcommand=scroll.set)
+        self.chat.tag_configure("speaker", foreground=CYAN, font=("Segoe UI", 9, "bold"),
+                                spacing1=5, spacing3=2)
+        self.chat.tag_configure("error", foreground=RED)
+        self.chat.tag_configure("system", foreground=MUTED)
+
+        input_wrap = tk.Frame(chat_panel, bg=PANEL)
+        input_wrap.grid(row=2, column=0, sticky="ew", pady=(11, 0))
+        input_wrap.grid_columnconfigure(0, weight=1)
+        self.entry = tk.Entry(
+            input_wrap, bg="#09243a", fg=TEXT, insertbackground=CYAN,
+            relief="flat", font=("Segoe UI", 10), bd=0,
+            highlightthickness=1, highlightbackground="#1b4a64",
+            highlightcolor=CYAN
+        )
+        self.entry.grid(row=0, column=0, sticky="ew", ipady=10, padx=(0, 7))
+        self.entry.bind("<Return>", lambda _e: self.send())
+        self.voice_button = self.button(input_wrap, "INICIAR VOZ", self.listen, compact=True)
+        self.voice_button.grid(row=0, column=1, padx=3)
+        self.button(input_wrap, "ENVIAR  ➤", self.send, accent=True, compact=True).grid(row=0, column=2, padx=(3, 0))
+        self.voice_state = tk.StringVar(value="MICROFONE DESLIGADO")
+        tk.Label(chat_panel, textvariable=self.voice_state, bg=PANEL, fg=MUTED,
+                 font=("Segoe UI", 7, "bold")).grid(row=3, column=0, sticky="w", pady=(7, 0))
 
         right = tk.Frame(shell, bg=BG)
-        right.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
-        status = self.panel(right, "Status do sistema", 11)
-        status.pack(fill="x", pady=(0, 8))
-        self.ai_state = tk.StringVar(value="IA: não configurada")
-        self.net_state = tk.StringVar(value="Internet: não verificada")
-        self.security_state = tk.StringVar(value="Defesa: monitor desligado")
-        self.cpu_state = tk.StringVar(value="CPU: indisponível")
-        self.mem_state = tk.StringVar(value="Memória: indisponível")
-        self.disk_state = tk.StringVar(value="Disco: indisponível")
-        self.battery_state = tk.StringVar(value="Bateria: indisponível")
+        right.grid(row=0, column=2, sticky="nsew", padx=(10, 0))
+        status = self.panel(right, "Estado do sistema", 12)
+        status.pack(fill="x", pady=(0, 10))
+        self.ai_state = tk.StringVar(value="IA  •  não configurada")
+        self.net_state = tk.StringVar(value="Rede  •  não verificada")
+        self.security_state = tk.StringVar(value="Defesa  •  desligada")
+        self.cpu_state = tk.StringVar(value="CPU  •  indisponível")
+        self.mem_state = tk.StringVar(value="Memória  •  indisponível")
+        self.disk_state = tk.StringVar(value="Disco  •  indisponível")
+        self.battery_state = tk.StringVar(value="Bateria  •  indisponível")
         for var in [self.ai_state, self.net_state, self.security_state,
                     self.cpu_state, self.mem_state, self.disk_state, self.battery_state]:
             tk.Label(status, textvariable=var, bg=PANEL, fg=TEXT,
-                     font=("Segoe UI", 8), anchor="w").pack(fill="x", pady=3)
+                     font=("Segoe UI", 8), anchor="w").pack(fill="x", pady=4)
 
-        location = self.panel(right, "Redes e localização", 11)
-        location.pack(fill="x", pady=(0, 8))
+        location = self.panel(right, "Localização", 12)
+        location.pack(fill="x", pady=(0, 10))
         tk.Label(location, textvariable=self.location, bg=PANEL, fg=TEXT,
-                 wraplength=220, justify="left", font=("Segoe UI", 8)).pack(anchor="w")
-        self.button(location, "ABRIR MAPA", self.drive, compact=True).pack(fill="x", pady=(8, 0))
+                 wraplength=190, justify="left", font=("Segoe UI", 8)).pack(anchor="w")
+        self.button(location, "ABRIR MAPAS", self.drive, compact=True).pack(fill="x", pady=(9, 0))
 
-        quick_tools = self.panel(right, "Ferramentas rápidas", 11)
-        quick_tools.pack(fill="x", pady=(0, 8))
+        tools_card = self.panel(right, "Acesso rápido", 12)
+        tools_card.pack(fill="both", expand=True)
         for label, action in [
-            ("▣  Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
-            ("▤  Bloco de notas", lambda: self.open_app("notepad.exe", "Bloco de Notas")),
-            ("🌐  Navegador interno", self.open_browser),
-            ("▶  Abrir vídeo", self.open_video),
-            ("📁  Abrir projetos", self.open_projects_folder),
-            ("⌖  Planejar rota", self.drive),
-            ("⏰  Meus lembretes", self.open_reminders),
-            ("▧  Capturar tela", self.screen_capture),
-            ("▤  Memória local", self.manage_memory)
+            ("Calculadora", lambda: self.open_app("calc.exe", "Calculadora")),
+            ("Bloco de notas", lambda: self.open_app("notepad.exe", "Bloco de Notas")),
+            ("Navegador", self.open_browser),
+            ("Capturar tela", self.screen_capture),
+            ("Meus lembretes", self.open_reminders),
+            ("Gerenciar memória", self.manage_memory),
         ]:
-            self.button(quick_tools, label, action, compact=True).pack(fill="x", pady=2)
+            self.button(tools_card, label, action, compact=True).pack(fill="x", pady=3)
 
-        self.footer = tk.Label(self.root, text="JARVIS • Aguardando comandos • Indicadores sem fonte aparecem como indisponíveis",
-                               bg="#061625", fg=MUTED, font=("Segoe UI", 8), pady=7)
+        self.footer = tk.Label(
+            self.root,
+            text="JARVIS  •  Sessão local  •  Ações sensíveis exigem confirmação",
+            bg="#061522", fg=MUTED, font=("Segoe UI", 7), pady=8
+        )
         self.footer.pack(fill="x")
 
     def _styles(self):
@@ -364,9 +407,24 @@ class JarvisApp:
             style.theme_use("clam")
         except tk.TclError:
             pass
-        style.configure("Jarvis.TButton", background="#0b2b43", foreground=TEXT,
-                        padding=(10, 8), borderwidth=0, font=("Segoe UI", 9, "bold"))
-        style.map("Jarvis.TButton", background=[("active", "#14506d")])
+        style.configure(
+            "Jarvis.TCombobox", fieldbackground="#0b263b",
+            background="#0b263b", foreground=TEXT, arrowcolor=CYAN,
+            bordercolor="#1a4a64", lightcolor="#1a4a64",
+            darkcolor="#1a4a64", padding=6
+        )
+        style.map("Jarvis.TCombobox",
+                  fieldbackground=[("readonly", "#0b263b")],
+                  foreground=[("readonly", TEXT)],
+                  selectbackground=[("readonly", "#0b263b")],
+                  selectforeground=[("readonly", TEXT)])
+        style.configure("Jarvis.Vertical.TScrollbar",
+                        background="#12364d", troughcolor="#041321",
+                        bordercolor="#041321", arrowcolor=CYAN)
+        style.configure("Jarvis.TButton", background="#102d43",
+                        foreground=TEXT, padding=(10, 8),
+                        borderwidth=0, font=("Segoe UI", 9, "bold"))
+        style.map("Jarvis.TButton", background=[("active", "#19425d")])
 
     def draw_core(self):
         if not hasattr(self, "hero"):
