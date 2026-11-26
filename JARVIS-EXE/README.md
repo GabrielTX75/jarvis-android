@@ -191,3 +191,17 @@ O JARVIS EXE pode conversar com um modelo local pelo Ollama, sem enviar o conte�
 O primeiro download do modelo exige internet e ocupa espaço em disco. Depois de baixado, a inferência é local. A velocidade depende de RAM, CPU/GPU e do tamanho do modelo; computadores modestos podem responder lentamente. A IA local não precisa de chave API, mas o JARVIS EXE não instala nem baixa modelos silenciosamente. O usuário escolhe e instala o Ollama e o modelo.
 
 Com **Usar somente IA local** marcado, o JARVIS consulta exclusivamente o Ollama em `127.0.0.1`. Se o Ollama estiver desligado ou o modelo não existir, o JARVIS mostra um erro e não envia a conversa para Groq, Gemini ou qualquer provedor online. Nesse modo, nem sequer consulta as credenciais de nuvem. Com a opção desmarcada, o JARVIS tenta Groq, depois Gemini e, por último, Ollama como alternativa.
+
+
+## Interface desktop — central de comando renovada
+
+A tela principal do JARVIS EXE foi reorganizada para reduzir a poluição visual e dar prioridade à conversa:
+
+- Cabeçalho compacto com identidade, estado real da sessão, conexão configurada, relógio e perfil de acesso.
+- Navegação lateral separa as telas principais dos módulos e ferramentas.
+- Área central dá mais espaço ao histórico de conversa e mantém o seletor de agente, entrada de texto e controle de voz sempre visíveis.
+- Histórico possui barra de rolagem dedicada; o núcleo animado se adapta ao espaço disponível sem ocupar a área de conversa.
+- Painel lateral concentra estado da IA, rede, defesa, métricas disponíveis e localização configurada.
+- Botões mantêm as mesmas ações e confirmações já existentes; esta alteração não concede novas permissões nem anuncia módulos desconectados como funcionais.
+
+A validação automatizada de estrutura está em `tests/test_dashboard_ui.py`. Ela verifica sintaxe, presença dos controles essenciais, navegação, rolagem e adaptação do núcleo visual. Esses testes não substituem uma inspeção visual em diferentes resoluções do Windows.
