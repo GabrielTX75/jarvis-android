@@ -87,6 +87,38 @@ class VscodeIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             vscode_integration.run_project_task(".", "arbitrary_shell")
 
+    def test_python_main_requires_entrypoint_and_runs_without_shell(self):
+        import subprocess
+        import sys
+        import python_environment
+        with tempfile.TemporaryDirectory() as temp:
+            workspace = Path(temp) / "projects"
+            project = workspace / "demo"
+            project.mkdir(parents=True)
+            (project / "main.py").write_text("print('ok')", encoding="utf-8")
+            with patch.object(vscode_integration, "ROOT", workspace), \
+                 patch.object(python_environment, "resolve_python_launcher", return_value=[sys.executable]), \
+                 patch.object(vscode_integration.subprocess, "run") as runner:
+                runner.return_value = subprocess.CompletedProcess(
+                    [sys.executable, "-B", "main.py"], 0, "ok", ""
+                )
+                result = vscode_integration.run_project_task(project, "python_run_main")
+                self.assertEqual(result.returncode, 0)
+                args, kwargs = runner.call_args
+                self.assertEqual(args[0], [sys.executable, "-B", "main.py"])
+                self.assertEqual(kwargs["timeout"], 30)
+                self.assertFalse(kwargs["shell"])
+                self.assertEqual(kwargs["cwd"], str(project))
+
+    def test_python_main_rejects_missing_entrypoint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            workspace = Path(temp) / "projects"
+            project = workspace / "demo"
+            project.mkdir(parents=True)
+            with patch.object(vscode_integration, "ROOT", workspace):
+                with self.assertRaises(FileNotFoundError):
+                    vscode_integration.run_project_task(project, "python_run_main")
+
 
 if __name__ == "__main__":
     unittest.main()
