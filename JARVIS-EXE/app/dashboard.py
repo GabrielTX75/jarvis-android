@@ -427,43 +427,51 @@ class JarvisApp:
         style.map("Jarvis.TButton", background=[("active", "#19425d")])
 
     def draw_core(self):
+        """Draw a lightweight animated status core that adapts to the hero panel."""
         if not hasattr(self, "hero"):
             return
-        c = self.hero
-        c.delete("all")
-        w = max(c.winfo_width(), 500)
-        h = max(c.winfo_height(), 260)
-        cx, cy = w * .50, h * .49
-        # Subtle grid and HUD rings
-        for x in range(0, w, 34):
-            c.create_line(x, 0, x, h, fill="#08243a")
-        for y in range(0, h, 28):
-            c.create_line(0, y, w, y, fill="#08243a")
-        for r in [55, 78, 104, 132]:
-            c.create_oval(cx-r, cy-r, cx+r, cy+r, outline="#0b5070", width=1)
-        c.create_oval(cx-42, cy-42, cx+42, cy+42, outline=CYAN, width=2)
-        c.create_oval(cx-32, cy-32, cx+32, cy+32, outline=BLUE, width=2)
-        c.create_oval(cx-20, cy-20, cx+20, cy+20, fill="#0a4564", outline=CYAN, width=2)
-        c.create_text(cx, cy, text="J", fill="#d9fbff", font=("Segoe UI", 30, "bold"))
-        c.create_text(26, 24, anchor="nw", text="JARVIS CORE • HOLOGRAPHIC COMMAND",
-                      fill=CYAN, font=("Segoe UI", 9, "bold"))
-        c.create_text(26, 52, anchor="nw", text="“Como posso ajudar hoje?”",
-                      fill=TEXT, font=("Segoe UI", 17, "bold"))
-        c.create_text(26, 82, anchor="nw", text="IA • PROJETOS • SEGURANÇA • CONTROLE",
-                      fill=MUTED, font=("Segoe UI", 8, "bold"))
-        c.create_text(w-22, 24, anchor="ne", text=self.status.get(),
-                      fill=GREEN, font=("Segoe UI", 9, "bold"))
-        c.create_text(w-22, h-20, anchor="se",
-                      text="Núcleo visual • sem projeção holográfica física",
-                      fill=MUTED, font=("Segoe UI", 7))
-        self.hero_phase = (self.hero_phase + 1) % 100
-        # Orbit markers
+        canvas = self.hero
+        canvas.delete("all")
+        width = max(canvas.winfo_width(), 420)
+        height = max(canvas.winfo_height(), 150)
+        for x in range(0, width, 36):
+            canvas.create_line(x, 0, x, height, fill="#092237")
+        for y in range(0, height, 30):
+            canvas.create_line(0, y, width, y, fill="#092237")
+
+        canvas.create_text(24, 27, anchor="nw", text="CENTRAL DE INTELIGÊNCIA",
+                           fill=CYAN, font=("Segoe UI", 8, "bold"))
+        canvas.create_text(24, 58, anchor="nw", text="Tudo pronto para ajudar.",
+                           fill=TEXT, font=("Segoe UI", 17, "bold"))
+        canvas.create_text(24, 91, anchor="nw",
+                           text="Converse, crie projetos ou peça uma análise.",
+                           fill=MUTED, font=("Segoe UI", 9))
+        canvas.create_text(24, height - 22, anchor="sw",
+                           text="IA  •  VOZ  •  PROJETOS  •  FERRAMENTAS",
+                           fill="#6f9bb2", font=("Segoe UI", 7, "bold"))
+
+        cx, cy = width - 112, height / 2
+        pulse = (self.hero_phase % 24) / 24
+        outer = 43 + pulse * 5
+        for radius, color, line_width in [
+            (outer + 18, "#10445e", 1), (outer, "#14708e", 1),
+            (29, BLUE, 1), (19, CYAN, 2)
+        ]:
+            canvas.create_oval(cx-radius, cy-radius, cx+radius, cy+radius,
+                               outline=color, width=line_width)
+        canvas.create_oval(cx-11, cy-11, cx+11, cy+11,
+                           fill="#0b7898", outline=CYAN, width=1)
+        canvas.create_text(cx, cy, text="J", fill="#f0fdff",
+                           font=("Segoe UI", 15, "bold"))
         import math
-        for j in range(5):
-            a = self.hero_phase * .035 + j * (math.tau / 5)
-            px, py = cx + math.cos(a) * 118, cy + math.sin(a) * 118
-            c.create_oval(px-3, py-3, px+3, py+3, fill=CYAN, outline="")
-        self.root.after(80, self.draw_core)
+        for index in range(4):
+            angle = self.hero_phase * .055 + index * (math.tau / 4)
+            px = cx + math.cos(angle) * (outer + 18)
+            py = cy + math.sin(angle) * (outer + 18)
+            canvas.create_oval(px-2.5, py-2.5, px+2.5, py+2.5,
+                               fill=CYAN, outline="")
+        self.hero_phase = (self.hero_phase + 1) % 240
+        self.root.after(100, self.draw_core)
 
     def _tick(self):
         now = time.localtime()
