@@ -176,3 +176,18 @@ O JARVIS EXE possui dois perfis configuráveis em **Configurações > Perfil de 
 - **Limite de segurança:** executar um programa Python não é uma sandbox. O código roda com as permissões normais da conta do Windows e pode acessar recursos permitidos a essa conta. Execute apenas projetos em que confia. O perfil Escola continua bloqueando a execução.
 - O reconhecimento de voz desta versão usa o serviço de transcrição do Google pela internet; a escuta é iniciada manualmente e pode ser interrompida pelo usuário.
 - O fluxo automatiza a criação e a execução simples por voz, mas não transforma qualquer comando falado em shell livre. Flutter/Dart ainda oferecem análise/testes permitidos, não execução automática genérica.
+
+
+## IA local (Ollama)
+
+O JARVIS EXE pode conversar com um modelo local pelo Ollama, sem enviar o conteúdo da conversa a um provedor de IA na internet. A conexão é feita somente com `http://127.0.0.1:11434`.
+
+1. Instale o Ollama para Windows pelo site oficial: https://ollama.com/download/windows
+2. Abra o terminal do Windows e baixe um modelo leve para começar: `ollama pull llama3.2:3b`.
+3. Deixe o Ollama em execução.
+4. Abra Configurações no JARVIS, mantenha `llama3.2:3b` como modelo local e marque **Priorizar IA local**.
+5. Salve e envie uma mensagem de teste.
+
+O primeiro download do modelo exige internet e ocupa espaço em disco. Depois de baixado, a inferência é local. A velocidade depende de RAM, CPU/GPU e do tamanho do modelo; computadores modestos podem responder lentamente. A IA local não precisa de chave API, mas o JARVIS EXE não instala nem baixa modelos silenciosamente. O usuário escolhe e instala o Ollama e o modelo.
+
+Se a opção de prioridade local estiver desmarcada, o JARVIS tenta Groq e Gemini primeiro e usa Ollama como alternativa, caso esteja disponível. Se estiver marcada, tenta Ollama primeiro e pode recorrer aos provedores online se o Ollama falhar.
