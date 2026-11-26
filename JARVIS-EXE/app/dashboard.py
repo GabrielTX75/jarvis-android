@@ -1052,8 +1052,12 @@ class JarvisApp:
                                    f"Projeto salvo. Deseja abrir '{name}' no Visual Studio Code?"):
                 self._open_vscode_project(str(project_path))
         except Exception as exc:
-            self.add("PROJETOS", f"Não foi possível criar o projeto: {exc}", True)
-            messagebox.showerror("Projeto", str(exc))
+            message = "Não foi possível criar o projeto: " + str(exc)
+            self.add("PROJETOS", message, True)
+            if self.voice_session_active:
+                self.speak(message)
+            else:
+                messagebox.showerror("Projeto", str(exc))
 
     def _open_vscode_project(self, project_path):
         from pathlib import Path
@@ -1204,9 +1208,12 @@ class JarvisApp:
             if self.voice_session_active:
                 self.root.after(0, lambda value=message: self.speak(value))
         except Exception as exc:
-            self.root.after(0, lambda: self.add("VALIDAÇÃO • ERRO", str(exc), True))
+            message = "Falha na tarefa do projeto " + name + ": " + str(exc)
+            self.root.after(0, lambda: self.add("VALIDAÇÃO • ERRO", message, True))
             self.root.after(0, lambda: self.status.set("ERRO"))
             self.root.after(0, lambda: setattr(self, "busy", False))
+            if self.voice_session_active:
+                self.root.after(0, lambda value=message: self.speak(value))
 
     def open_app(self, exe, label):
         if not self.require_access("launch_app", exe):
