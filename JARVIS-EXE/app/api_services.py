@@ -21,8 +21,34 @@ def _request(url, *, method="GET", headers=None, payload=None, timeout=18):
             raw = response.read(1_500_000)
             return json.loads(raw.decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Never include the URL, headers, or request body: they may contain a key.
-        raise ApiServiceError("O serviço respondeu HTTP " + str(exc.code) + ". Confira a chave, a cota e tente novamente.") from None
+        # Show the provider's useful error message without exposing URLs, headers,
+        # request bodies, or credentials (Gemini keys may be in the query string).
+        detail = ""
+        try:
+            body = json.loads(exc.read(8192).decode("utf-8", errors="replace"))
+            error = body.get("error", {}) if isinstance(body, dict) else {}
+            detail = str(error.get("message", "")) if isinstance(error, dict) else ""
+        except Exception:
+            detail = ""
+        detail = " ".join(detail.split())[:240]
+        code = int(exc.code)
+        if code == 401:
+            hint = "Chave ausente, inválida ou não autorizada."
+        elif code == 403:
+            hint = "Acesso negado: confira permissões do projeto, da chave e do modelo."
+        elif code == 404:
+            hint = "Endpoint ou modelo não encontrado; confira o identificador do modelo."
+        elif code == 429:
+            hint = "Limite de uso ou cota atingido; confira os limites do provedor."
+        elif code >= 500:
+            hint = "Falha temporária no serviço do provedor."
+        else:
+            hint = "O provedor recusou a solicitação."
+        if detail:
+            # Do not echo the credential if a provider ever includes it in an error.
+            detail = detail.replace(str(headers.get("Authorization", "")).replace("Bearer ", ""), "[oculto]") if headers else detail
+            raise ApiServiceError("HTTP " + str(code) + " — " + hint + " Detalhe: " + detail) from None
+        raise ApiServiceError("HTTP " + str(code) + " — " + hint) from None
     except urllib.error.URLError:
         raise ApiServiceError("Não foi possível conectar ao serviço. Verifique a internet.") from None
     except (TimeoutError, json.JSONDecodeError):
