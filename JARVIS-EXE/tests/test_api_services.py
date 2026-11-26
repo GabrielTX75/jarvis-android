@@ -47,6 +47,51 @@ class ApiServiceTests(unittest.TestCase):
         self.assertEqual(result["price"], 38.5)
         self.assertEqual(result["source"], "brapi")
 
+    @patch("api_services.urllib.request.urlopen")
+    def test_http_error_exposes_provider_message_without_credentials(self, mocked):
+        import urllib.error
+        error_body = json.dumps({"error": {"message": "The model is not enabled for this project"}}).encode()
+        mocked.side_effect = urllib.error.HTTPError(
+            "https://example.test/api?key=secret-key", 403, "Forbidden",
+            {}, __import__("io").BytesIO(error_body)
+        )
+        with self.assertRaises(api_services.ApiServiceError) as caught:
+            api_services._request(
+                "https://example.test/api?key=secret-key",
+                headers={"Authorization": "Bearer secret-key"}
+            )
+        message = str(caught.exception)
+        self.assertIn("HTTP 403", message)
+        self.assertIn("model is not enabled", message)
+        self.assertNotIn("secret-key", message)
+
+    @patch("api_services.urllib.request.urlopen")
+    def test_groq_chat_sends_real_chat_completion_request(self, mocked):
+        mocked.return_value = FakeResponse({"choices": [{
+            "message": {"content": "OK"}
+        }]})
+        answer = api_services.groq_chat(
+            "secret", "openai/gpt-oss-120b",
+            [{"role": "user", "content": "Responda apenas: OK"}]
+        )
+        self.assertEqual(answer, "OK")
+        request = mocked.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.groq.com/openai/v1/chat/completions")
+        self.assertEqual(request.get_header("Authorization"), "Bearer secret")
+
+    @patch("api_services.urllib.request.urlopen")
+    def test_gemini_chat_sends_real_generation_request(self, mocked):
+        mocked.return_value = FakeResponse({"candidates": [{
+            "content": {"parts": [{"text": "OK"}]}
+        }]})
+        answer = api_services.gemini_chat("secret", [
+            {"role": "user", "content": "Responda apenas: OK"}
+        ])
+        self.assertEqual(answer, "OK")
+        request = mocked.call_args.args[0]
+        self.assertIn(":generateContent", request.full_url)
+        self.assertEqual(request.get_method(), "POST")
+
     def test_tavily_rejects_missing_key_and_empty_query(self):
         with self.assertRaises(api_services.ApiServiceError):
             api_services.tavily_search("", "test")
