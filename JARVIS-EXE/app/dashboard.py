@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus, quote
-from api_services import ApiServiceError, brapi_quote, chat_with_fallback, tavily_search
+from api_services import ApiServiceError, brapi_quote, chat_with_fallback, gemini_chat, groq_chat, tavily_search
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
 from access_control import AccessController, PERSONAL, SCHOOL
