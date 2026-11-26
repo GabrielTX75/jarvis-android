@@ -38,6 +38,7 @@ class AccessControllerTests(unittest.TestCase):
             self.assertFalse(access.check("workspace_write", outside))
             self.assertTrue(access.check("run_project_task", project, "flutter_analyze"))
             self.assertFalse(access.check("run_project_task", project, "python_tests"))
+            self.assertFalse(access.check("run_project_task", project, "python_run_main"))
             self.assertFalse(access.check("capture_screen"))
             self.assertFalse(access.check("desktop_control"))
             self.assertFalse(access.check("mouse_keyboard"))
