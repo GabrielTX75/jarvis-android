@@ -1,5 +1,22 @@
 """Manual, opt-in continuous speech recognition for JARVIS EXE."""
 
+import re
+import unicodedata
+
+
+def classify_confirmation(text):
+    """Classify short, explicit spoken confirmations without guessing intent."""
+    value = unicodedata.normalize("NFKD", str(text or "").strip().lower())
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = re.sub(r"[^a-z0-9 ]+", " ", value)
+    value = " ".join(value.split())
+    if value in {"confirmar", "confirmo", "pode confirmar", "sim confirmar"}:
+        return "confirm"
+    if value in {"cancelar", "cancela", "cancelo", "nao", "nao confirmar"}:
+        return "cancel"
+    return None
+
+
 def run_continuous_session(
     speech_module,
     stop_event,
