@@ -169,7 +169,14 @@ class JarvisOuvidoService : Service() {
                         gravador = g
                         atualizarStatus("Ouvindo a palavra Jarvis…", true)
                     } catch (e: Exception) {
+                        falhasDeLeitura++
                         atualizarStatus("Não consegui usar o microfone. Confira a permissão.", true)
+                        if (falhasDeLeitura >= 3) {
+                            atualizarStatus("Escuta pausada por falha no microfone. Ative novamente nas configurações do JARVIS.", true)
+                            getSharedPreferences("jarvis_ouvir", MODE_PRIVATE).edit().putBoolean("ativo", false).apply()
+                            stopSelf()
+                            break
+                        }
                         Thread.sleep(2000)
                         continue
                     }
