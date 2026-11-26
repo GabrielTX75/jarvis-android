@@ -121,9 +121,11 @@ def run_project_task(project_path, task, timeout=180):
         entrypoint = folder / "main.py"
         if not entrypoint.is_file():
             raise FileNotFoundError("Não encontrei main.py na pasta do projeto.")
-        from python_environment import resolve_python_launcher, venv_interpreter_path
-        project_python = venv_interpreter_path(folder)
-        if project_python.is_file():
+        from python_environment import resolve_python_launcher, validate_project_venv
+        venv_dir, project_python = validate_project_venv(folder)
+        if venv_dir.exists():
+            if not project_python.is_file():
+                raise FileNotFoundError("O .venv do projeto existe, mas o Python dele está ausente ou incompleto.")
             command = [str(project_python), "-B", "main.py"]
         else:
             launcher = resolve_python_launcher()
