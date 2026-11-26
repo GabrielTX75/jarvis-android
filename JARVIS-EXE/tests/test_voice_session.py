@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
-from voice_session import run_continuous_session
+from voice_session import classify_confirmation, run_continuous_session
 
 
 class WaitTimeoutError(Exception):
@@ -168,6 +168,13 @@ class VoiceSessionTests(unittest.TestCase):
 
         self.assertEqual(len(errors), 1)
         self.assertIn("INTERNET", errors[0])
+
+    def test_explicit_confirmation_phrases(self):
+        self.assertEqual(classify_confirmation("Confirmar!"), "confirm")
+        self.assertEqual(classify_confirmation("pode confirmar"), "confirm")
+        self.assertEqual(classify_confirmation("CANCELAR"), "cancel")
+        self.assertEqual(classify_confirmation("não"), "cancel")
+        self.assertIsNone(classify_confirmation("talvez"))
 
 
 if __name__ == "__main__":
