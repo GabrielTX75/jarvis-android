@@ -164,3 +164,15 @@ O JARVIS EXE possui dois perfis configuráveis em **Configurações > Perfil de 
 - **Registro:** decisões de permissão são registradas em `%APPDATA%/Jarvis/access_audit.jsonl`, sem guardar caminhos completos de arquivos.
 - **Limite fundamental:** esses perfis são controles internos do aplicativo, não uma sandbox nem um substituto das políticas de TI. A conta do Windows, permissões NTFS, UAC, antivírus, filtros de rede e gerenciamento da escola continuam mandando. O JARVIS não tenta elevar privilégios nem contornar restrições impostas pela instituição.
 - **Ainda não implementado:** controle visual inteligente que reconheça elementos de qualquer janela, execução arbitrária de comandos, instalação automática sem confirmação e acesso irrestrito a todo o disco. O controle atual é explícito, por coordenadas/atalhos permitidos e seletores do Windows.
+
+## Evolução — fluxo de desenvolvimento por voz
+
+- Durante uma sessão de voz ativa, o JARVIS fala as respostas sem exigir que a opção geral de leitura em voz esteja ligada.
+- Ao pedir a criação de um projeto, o JARVIS prepara o manifesto, solicita confirmação por voz (“confirmar” ou “cancelar”) e grava os arquivos somente em `Documents/JarvisProjects`.
+- Se o projeto criado contiver `main.py`, o JARVIS pode oferecer a execução por voz. A execução exige confirmação explícita, usa `shell=False`, limita o tempo a 30 segundos e captura a saída.
+- O executor Python usa o `.venv` do projeto quando disponível; caso contrário, procura Python 3 instalado no Windows. Não instala dependências automaticamente.
+- Comandos de voz: “rode python NOME_DO_PROJETO”, “teste python NOME_DO_PROJETO”, “analise python NOME_DO_PROJETO”, “analise dart NOME_DO_PROJETO” e “analise flutter NOME_DO_PROJETO”.
+- Confirmações expiram após 60 segundos. “cancelar” não executa nada.
+- **Limite de segurança:** executar um programa Python não é uma sandbox. O código roda com as permissões normais da conta do Windows e pode acessar recursos permitidos a essa conta. Execute apenas projetos em que confia. O perfil Escola continua bloqueando a execução.
+- O reconhecimento de voz desta versão usa o serviço de transcrição do Google pela internet; a escuta é iniciada manualmente e pode ser interrompida pelo usuário.
+- O fluxo automatiza a criação e a execução simples por voz, mas não transforma qualquer comando falado em shell livre. Flutter/Dart ainda oferecem análise/testes permitidos, não execução automática genérica.
