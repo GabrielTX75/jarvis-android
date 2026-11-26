@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from reminders import ReminderManager, parse_reminder
 from core import CommandRouter, ModuleRegistry, ModuleStatus
 from urllib.parse import quote_plus, quote
-from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, tavily_search
+from api_services import ApiServiceError, brapi_quote, gemini_chat, groq_chat, ollama_chat, tavily_search
 from agents import names as agent_names, system_instruction as agent_instruction
 from memory_store import LocalMemory
 from access_control import AccessController, PERSONAL, SCHOOL
@@ -157,6 +157,8 @@ class JarvisApp:
         return {
             "endpoint": data.get("endpoint", "https://api.groq.com/openai/v1/chat/completions"),
             "model": data.get("model", "openai/gpt-oss-120b"),
+            "local_model": data.get("local_model", "llama3.2:3b"),
+            "prefer_local": bool(data.get("prefer_local", False)),
             "api_key": keyring.get_password("JARVIS", "api_key") or "",
             "location_label": data.get("location_label", ""),
             "speak_replies": bool(data.get("speak_replies", False)),
@@ -543,7 +545,13 @@ class JarvisApp:
             answer = None
             provider = ""
             errors = []
-            if groq_key:
+            if self.config.get("prefer_local"):
+                try:
+                    answer = ollama_chat(request_history, self.config.get("local_model", "llama3.2:3b"))
+                    provider = "IA local (Ollama)"
+                except Exception as exc:
+                    errors.append("Local: " + str(exc))
+            if answer is None and groq_key:
                 try:
                     answer = groq_chat(groq_key, self.config["model"], request_history,
                                         endpoint=self.config["endpoint"])
@@ -556,8 +564,14 @@ class JarvisApp:
                     provider = "Gemini (reserva)"
                 except Exception as exc:
                     errors.append("Gemini: " + str(exc))
+            if answer is None and not self.config.get("prefer_local"):
+                try:
+                    answer = ollama_chat(request_history, self.config.get("local_model", "llama3.2:3b"))
+                    provider = "IA local (Ollama)"
+                except Exception as exc:
+                    errors.append("Local: " + str(exc))
             if answer is None:
-                raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq ou Gemini em Configurações."]))
+                raise ApiServiceError("Nenhuma IA respondeu. " + " ".join(errors or ["Configure Groq/Gemini ou instale o Ollama com um modelo local."]))
             workspace_action = self.extract_workspace_action(answer)
             waiting_for_voice_confirmation = bool(workspace_action and self.voice_session_active)
             if waiting_for_voice_confirmation:
@@ -811,7 +825,8 @@ class JarvisApp:
         }
         for label, key, secret in [
             ("Endpoint HTTPS da IA", "endpoint", False),
-            ("Modelo", "model", False),
+            ("Modelo na nuvem", "model", False),
+            ("Modelo local Ollama", "local_model", False),
             ("Groq API Key (armazenada no Gerenciador de Credenciais)", "api_key", True),
             ("Localização salva (opcional; apenas rótulo)", "location_label", False)
         ]:
