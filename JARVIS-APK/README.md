@@ -58,3 +58,13 @@ Este diretório é a organização-alvo. A implementação existente ainda preci
 No APK, a interface envia as mensagens ao bridge nativo, mas não recebe a chave da IA. O Kotlin consulta o endpoint e o modelo salvos no Android, lê a chave do `EncryptedSharedPreferences` e faz a chamada HTTPS diretamente. A URL remota completa precisa ser aprovada em um diálogo nativo; HTTP é aceito somente em localhost/127.0.0.1. O transporte recusa redirecionamentos e limita contexto, resposta, concorrência e tempo.
 
 A interface visual foi preservada. O JavaScript agora é um arquivo local `app.js`, protegido por CSP sem scripts inline/remotos. A entrada da chave ainda passa temporariamente pelo JavaScript do campo; uma entrada nativa e um gateway HTTPS são melhorias futuras. Não há teste físico no Galaxy A06 nesta etapa.
+
+
+## Evolução 10 — credenciais nativas e confiabilidade da escuta
+
+- A interface WebView não lê mais o token do servidor de busca nem as chaves Gemini, Tavily, brapi ou Picovoice. A pesquisa autenticada usa o contrato existente (GET /busca?q=... com o cabeçalho X-Jarvis-Token), executado pelo Kotlin com o token vindo do armazenamento criptografado.
+- O transporte de pesquisa exige endpoint HTTPS remoto (HTTP apenas em localhost/127.0.0.1), recusa redirecionamentos, limita a resposta a 256 KB e retorna no máximo cinco resultados com campos limitados.
+- A escuta em segundo plano só inicia depois que o Android concede a permissão de microfone. Se a permissão for negada, a preferência é revertida para desligada; se o serviço não puder iniciar, o app não mantém um estado falso de escuta ativa.
+- A notificação persistente não exibe mais trechos de fala reconhecidos. Erros de leitura do microfone provocam tentativa limitada de recuperação; após três falhas consecutivas, a escuta é pausada.
+- Foram adicionados testes unitários para a classificação de resultados de leitura de áudio e verificações estáticas para o isolamento das credenciais.
+- Build e testes desta evolução: aguardando execução do GitHub Actions. Instalação e validação no Galaxy A06 continuam pendentes.
