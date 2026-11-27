@@ -27,7 +27,6 @@ Manter uma única lógica de produto para Android e Windows. APK e EXE serão cl
 ## Serviços compartilhados previstos
 - Autenticação, perfis, papéis e sessões.
 - Gateway multi-provedor de IA e limites de custo.
-- Gateway multi-provedor de IA e limites de custo.
 - Pesquisa web com fontes e data de consulta.
 - Visão/OCR processada conforme consentimento.
 - Contratos de exportação/importação e backup/restauração locais, sem sincronização automática de dados pessoais.
@@ -44,6 +43,6 @@ Separar usuários registrados de sessões simultâneas. Permitir múltiplos perf
 - Testes automatizados de autenticação, isolamento e autorização.
 - Testes de backup/restauração local e confirmação de que memórias pessoais não são enviadas ao backend por padrão.
 - Testes de contrato para cada provedor de IA.
-- Testes de falha de rede, repetição idempotente, conflitos e recuperação.
+- Testes de falha de rede, repetição idempotente e recuperação.
 - Testes de vazamento de segredos e dados entre usuários.
 - Documentação de implantação, backups, restauração, custos e limites.
