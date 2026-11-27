@@ -22,6 +22,14 @@ class ApiAuthHeadersTest {
     }
 
     @Test
+    fun brapiUsesBearerAuthentication() {
+        assertEquals(
+            mapOf("Authorization" to "Bearer test-key"),
+            ApiAuthHeaders.forProvider("brapi", "test-key")
+        )
+    }
+
+    @Test
     fun blankOrUnsupportedCredentialsProduceNoHeaders() {
         assertTrue(ApiAuthHeaders.forProvider("gemini", " ").isEmpty())
         assertTrue(ApiAuthHeaders.forProvider("unknown", "test-key").isEmpty())
