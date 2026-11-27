@@ -303,17 +303,20 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
             return try {
                 val target = when (name) {
                     "groq" -> "https://api.groq.com/openai/v1/models"
-                    "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models?key=" + Uri.encode(key)
+                    "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models"
                     "tavily" -> "https://api.tavily.com/search"
                     else -> "https://brapi.dev/api/quote/PETR4?token=" + Uri.encode(key)
                 }
                 val conn = (URL(target).openConnection() as HttpURLConnection)
                 connection = conn
+                conn.instanceFollowRedirects = false
                 conn.connectTimeout = 10000
                 conn.readTimeout = 10000
                 conn.requestMethod = if (name == "tavily") "POST" else "GET"
                 conn.setRequestProperty("Accept", "application/json")
-                if (name == "groq") conn.setRequestProperty("Authorization", "Bearer $key")
+                ApiAuthHeaders.forProvider(name, key).forEach { (header, value) ->
+                    conn.setRequestProperty(header, value)
+                }
                 if (name == "tavily") {
                     conn.doOutput = true
                     conn.setRequestProperty("Content-Type", "application/json")
