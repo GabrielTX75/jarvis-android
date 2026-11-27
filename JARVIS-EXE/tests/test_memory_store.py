@@ -67,6 +67,25 @@ class LocalMemoryTests(unittest.TestCase):
             self.assertTrue(migrated.startswith(_FILE_HEADER))
             self.assertNotIn("fato legado".encode("utf-8"), migrated)
 
+    def test_migration_keeps_only_the_configured_number_of_items(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "memory.json"
+            path.write_text(json.dumps(["um", "dois", "três"]), encoding="utf-8")
+            store = make_store(path, max_items=2)
+            self.assertEqual(store.list(), ["dois", "três"])
+            payload = test_unprotect(path.read_bytes()[len(_FILE_HEADER):])
+            self.assertEqual(json.loads(payload.decode("utf-8")), ["dois", "três"])
+
+    def test_protection_failure_never_creates_plaintext_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "memory.json"
+            def fail_protect(value):
+                raise RuntimeError("proteção indisponível")
+            store = LocalMemory(path, protector=fail_protect, unprotector=test_unprotect)
+            with self.assertRaises(MemoryStorageError):
+                store.remember("não gravar em texto puro")
+            self.assertFalse(path.exists())
+
     def test_corrupt_encrypted_file_is_preserved(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "memory.json"
