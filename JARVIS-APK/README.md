@@ -72,7 +72,7 @@ A interface visual foi preservada. O JavaScript agora é um arquivo local `app.j
 
 ## Evolução 11 — memória factual protegida e autenticação Gemini
 
-- Os fatos salvos pelo comando de voz `lembrar` passam a usar `EncryptedSharedPreferences` no Android.
+- Os fatos salvos pela ação nativa `lembrar` passam a usar `EncryptedSharedPreferences` no Android.
 - Na primeira leitura, os fatos antigos de `jarvis_memoria` são copiados para o cofre criptografado; a cópia antiga só é removida depois que a gravação segura confirma sucesso.
 - A memória factual normaliza espaços, evita duplicatas sem diferenciar maiúsculas/minúsculas, limita cada fato a 200 caracteres e mantém até 50 fatos.
 - O comando `esquecer` só informa sucesso quando confirma a remoção do armazenamento legado e do armazenamento criptografado.
