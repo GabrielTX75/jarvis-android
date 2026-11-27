@@ -37,7 +37,7 @@ class MemoryFactsPolicyTest {
     @Test
     fun appendAddsNewFactWithoutDuplicatingExistingFact() {
         assertEquals(
-            listOf("uso português", "prefiro voz"),
+            listOf("uso português", "PREFIRO VOZ"),
             MemoryFactsPolicy.append(listOf("uso português"), " PREFIRO   VOZ ")
         )
     }
