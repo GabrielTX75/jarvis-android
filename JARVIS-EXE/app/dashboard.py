@@ -532,7 +532,12 @@ class JarvisApp:
         waiting_for_voice_confirmation = False
         try:
             request_history = [dict(item) for item in self.history]
-            context = self.memory.prompt_context()
+            try:
+                context = self.memory.prompt_context()
+            except Exception as exc:
+                context = ""
+                message = "A memória protegida não pôde ser aberta; o arquivo foi preservado e a conversa seguirá sem esse contexto. " + str(exc)
+                self.root.after(0, lambda value=message: self.add("MEMÓRIA LOCAL • ERRO", value, True))
             system_text = SYSTEM + "\n\n" + agent_instruction(self.agent_var.get())
             if context:
                 system_text += "\n\n" + context
