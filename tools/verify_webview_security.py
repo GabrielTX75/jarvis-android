@@ -14,6 +14,12 @@ SERVICE = (ROOT / "app/src/main/java/com/gabriel/jarvis/JarvisOuvidoService.kt")
 NUCLEO = (ROOT / "app/src/main/java/com/gabriel/jarvis/NucleoJarvis.kt").read_text(encoding="utf-8")
 AUDIO_POLICY = (ROOT / "app/src/main/java/com/gabriel/jarvis/AudioReadPolicy.kt").read_text(encoding="utf-8")
 AUDIO_POLICY_TEST = (ROOT / "app/src/test/java/com/gabriel/jarvis/AudioReadPolicyTest.kt").read_text(encoding="utf-8")
+MEMORY_STORE = (ROOT / "app/src/main/java/com/gabriel/jarvis/JarvisMemoryStore.kt").read_text(encoding="utf-8")
+MEMORY_POLICY = (ROOT / "app/src/main/java/com/gabriel/jarvis/MemoryFactsPolicy.kt").read_text(encoding="utf-8")
+MEMORY_POLICY_TEST = (ROOT / "app/src/test/java/com/gabriel/jarvis/MemoryFactsPolicyTest.kt").read_text(encoding="utf-8")
+ACTIONS = (ROOT / "app/src/main/java/com/gabriel/jarvis/Acoes.kt").read_text(encoding="utf-8")
+API_AUTH = (ROOT / "app/src/main/java/com/gabriel/jarvis/ApiAuthHeaders.kt").read_text(encoding="utf-8")
+API_AUTH_TEST = (ROOT / "app/src/test/java/com/gabriel/jarvis/ApiAuthHeadersTest.kt").read_text(encoding="utf-8")
 
 
 class Audit(HTMLParser):
@@ -107,6 +113,23 @@ assert "Notification.VISIBILITY_PRIVATE" in SERVICE
 assert 'atualizarStatus("Ouvi:' not in SERVICE, "A notificação não deve expor transcrições de voz"
 assert "fun decide(readResult: Int)" in AUDIO_POLICY
 assert "negativeReadResultsRequestRecorderRecovery" in AUDIO_POLICY_TEST
+
+# Memória factual: migração segura, sem apagar a cópia antiga antes do commit criptografado.
+assert "EncryptedSharedPreferences.create" in MEMORY_STORE
+assert "secure.edit().putString(FACTS_KEY" in MEMORY_STORE
+assert "legacy.edit().remove(FACTS_KEY).commit()" in MEMORY_STORE
+assert "JarvisMemoryStore.facts(ctx)" in ACTIONS
+assert "JarvisMemoryStore.add(ctx, limpo)" in ACTIONS
+assert "JarvisMemoryStore.clear(ctx)" in ACTIONS
+assert "keepsOnlyTheMostRecentFiftyFacts" in MEMORY_POLICY_TEST
+assert "truncatesFactsToTwoHundredCharacters" in MEMORY_POLICY_TEST
+
+# Gemini API: a chave vai no cabeçalho, nunca na query string da URL de teste.
+assert "x-goog-api-key" in API_AUTH
+assert 'ApiAuthHeaders.forProvider(name, key)' in ACTIVITY
+assert "models?key=" not in ACTIVITY
+assert "instanceFollowRedirects = false" in ACTIVITY
+assert "geminiUsesDedicatedApiKeyHeader" in API_AUTH_TEST
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
