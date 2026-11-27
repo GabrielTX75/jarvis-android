@@ -115,14 +115,22 @@ def publish_static_site(project_path, timeout=300):
     return {"success": True, "returncode": 0, "output": output, "url": url}
 
 
+def locate_apk(project_path):
+    """Find the conventional APK output from a prior build."""
+    folder = _project_folder(project_path)
+    candidates = (
+        folder / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk",
+        folder / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk",
+    )
+    return next((str(path) for path in candidates if path.is_file() and path.stat().st_size > 0), None)
+
+
 def publish_apk_release(project_path, apk_path, timeout=180):
     """Upload a built APK as a new GitHub Release using the user's gh login."""
     folder = _project_folder(project_path)
     apk = Path(apk_path).expanduser().resolve()
     if not apk.is_file() or apk.suffix.lower() != ".apk" or apk.stat().st_size <= 0:
         raise ValueError("O arquivo APK não existe ou é inválido.")
-    if not (folder / ".git").exists():
-        raise ValueError("Para publicar o APK, o projeto precisa ser um repositório GitHub clonado localmente.")
     gh = shutil.which("gh")
     if not gh:
         raise FileNotFoundError("GitHub CLI (gh) não encontrado. Instale e autentique-se manualmente.")
@@ -131,7 +139,7 @@ def publish_apk_release(project_path, apk_path, timeout=180):
         raise PermissionError("GitHub CLI não está autenticado. Faça login manualmente com gh auth login.")
     repo = _run([gh, "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], folder, 20)
     if repo.returncode != 0 or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*", repo.stdout or ""):
-        raise RuntimeError("Não consegui confirmar o repositório GitHub deste projeto.")
+        raise RuntimeError("Não consegui identificar um repositório. Execute 'gh repo set-default DONO/REPOSITORIO' uma vez e tente novamente.")
     tag = "jarvis-apk-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     command = [gh, "release", "create", tag, str(apk), "--title", "JARVIS APK " + tag, "--notes", "APK compilado pelo JARVIS Deploy."]
     result = _run(command, folder, min(max(int(timeout), 30), 600))
