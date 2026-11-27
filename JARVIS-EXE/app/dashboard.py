@@ -30,7 +30,7 @@ import keyring
 from desktop_tools import capture_screen, read_screen_text
 from project_workspace import create_project, write_project_file
 from vscode_integration import create_generated_project, open_in_vscode, run_project_task
-from deploy_manager import available_tools as deploy_available_tools, build_apk, package_static_site, publish_static_site, publish_apk_release
+from deploy_manager import available_tools as deploy_available_tools, build_apk, locate_apk, package_static_site, publish_static_site, publish_apk_release
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
@@ -1360,9 +1360,9 @@ class JarvisApp:
                     message = "A publicação do site falhou.\n" + result["output"]
                     self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • FALHA", value, True))
             elif task == "publish_apk":
-                apk = self.last_built_apks.get(name)
+                apk = self.last_built_apks.get(name) or locate_apk(folder)
                 if not apk:
-                    raise FileNotFoundError("Este projeto ainda não tem um APK compilado nesta sessão. Primeiro diga: 'JARVIS, compilar APK " + name + "'.")
+                    raise FileNotFoundError("Não encontrei um APK compilado para este projeto. Primeiro diga: 'JARVIS, compilar APK " + name + "'.")
                 result = publish_apk_release(folder, apk)
                 if result["success"]:
                     message = "APK publicado na GitHub Release: " + (result.get("release") or "GitHub confirmou a publicação.")
