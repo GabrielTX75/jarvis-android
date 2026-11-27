@@ -5,6 +5,10 @@ on:
     paths:
       - "JARVIS-EXE/**"
       - ".github/workflows/build-exe.yml"
+  pull_request:
+    paths:
+      - "JARVIS-EXE/**"
+      - ".github/workflows/build-exe.yml"
 permissions:
   contents: read
 concurrency:
