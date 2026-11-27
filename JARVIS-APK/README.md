@@ -68,3 +68,14 @@ A interface visual foi preservada. O JavaScript agora é um arquivo local `app.j
 - A notificação persistente não exibe mais trechos de fala reconhecidos. Erros de leitura do microfone provocam tentativa limitada de recuperação; após três falhas consecutivas, a escuta é pausada.
 - Foram adicionados testes unitários para a classificação de resultados de leitura de áudio e verificações estáticas para o isolamento das credenciais.
 - Build e testes desta evolução: aguardando execução do GitHub Actions. Instalação e validação no Galaxy A06 continuam pendentes.
+
+
+## Evolução 11 — memória factual protegida e autenticação Gemini
+
+- Os fatos salvos pelo comando de voz `lembrar` passam a usar `EncryptedSharedPreferences` no Android.
+- Na primeira leitura, os fatos antigos de `jarvis_memoria` são copiados para o cofre criptografado; a cópia antiga só é removida depois que a gravação segura confirma sucesso.
+- A memória factual normaliza espaços, evita duplicatas sem diferenciar maiúsculas/minúsculas, limita cada fato a 200 caracteres e mantém até 50 fatos.
+- O comando `esquecer` só informa sucesso quando confirma a remoção do armazenamento legado e do armazenamento criptografado.
+- O teste de conectividade Gemini envia a chave pelo cabeçalho `x-goog-api-key`, não pela query string; redirecionamentos são desativados nesses testes.
+- **Limitação conhecida:** a memória exibida pela interface (`jv_memory`), notas, tarefas e histórico ainda ficam em `localStorage` do WebView. Esta evolução protege apenas os fatos usados pelo comando nativo `lembrar`; a migração do restante para armazenamento nativo protegido continua pendente.
+- Testes automatizados adicionados para as regras de normalização e cabeçalhos. A migração criptográfica ainda precisa de teste em aparelho; build/CI desta evolução aguardando execução.
