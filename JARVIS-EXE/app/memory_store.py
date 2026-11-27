@@ -152,7 +152,7 @@ class LocalMemory:
                 raise MemoryStorageError(
                     "O formato antigo de memória é inválido. O arquivo foi preservado."
                 )
-            self._save(data)
+            self._save(data[-self.max_items:])
 
         if not isinstance(data, list) or any(not isinstance(item, str) for item in data):
             raise MemoryStorageError(
