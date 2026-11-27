@@ -125,6 +125,7 @@ class JarvisApp:
         self.modules.register(ModuleStatus("maps", "Mapas e rotas", ("maps", "routes"), False, "Abre Google Maps; GPS e Routes API ainda não conectados"))
         self.modules.register(ModuleStatus("holograms", "Hologramas 3D", ("3d", "hand_tracking"), True, "Laboratório esquemático; webcam opcional"))
         self.modules.register(ModuleStatus("security", "Segurança defensiva", ("static_audit", "event_monitoring"), True, "Auditoria local e logs fornecidos; sem contenção remota"))
+        self.modules.register(ModuleStatus("deploy", "JARVIS Deploy", ("apk_build", "site_publish", "release_upload"), True, "Compilação e publicação dependem de SDKs/CLIs instalados e confirmação"))
         self.modules.register(ModuleStatus("finance", "Análise financeira", ("market_data",), False, "Sem provedor de cotações conectado"))
         self.history = [{"role": "system", "content": SYSTEM}]
         self.busy = False
