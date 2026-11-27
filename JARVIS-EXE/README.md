@@ -196,7 +196,7 @@ Com **Usar somente IA local** marcado, o JARVIS consulta exclusivamente o Ollama
 
 ## JARVIS Deploy — APK e publicação de sites (primeira integração)
 
-O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferramentas, compilar APKs, empacotar sites estáticos e publicar por contas que o usuário já autenticou. Para um projeto local sem repositório, associe-o a um remoto GitHub antes de publicar o APK. As ações exigem confirmação explícita; o módulo não instala SDKs, CLIs ou dependências automaticamente e não armazena tokens.
+O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferramentas, compilar APKs, empacotar sites estáticos e publicar por contas que o usuário já autenticou. Para um projeto local sem repositório, associe-o a um remoto GitHub ou configure o repositório padrão do GitHub CLI antes de publicar o APK. As ações exigem confirmação explícita; o módulo não instala SDKs, CLIs ou dependências automaticamente e não armazena tokens.
 
 ### Comandos reconhecidos
 - `status deploy`: mostra se Flutter, Gradle, Netlify CLI e GitHub CLI estão disponíveis.
