@@ -30,6 +30,7 @@ import keyring
 from desktop_tools import capture_screen, read_screen_text
 from project_workspace import create_project, write_project_file
 from vscode_integration import create_generated_project, open_in_vscode, run_project_task
+from deploy_manager import available_tools as deploy_available_tools, build_apk, package_static_site, publish_static_site, publish_apk_release
 from defensive_audit import audit_folder
 from hologram_lab import HologramLab
 from money_lab import MoneyLab
@@ -113,6 +114,8 @@ class JarvisApp:
         self.command_router = CommandRouter()
         self.command_router.register("vscode", self.try_vscode_command, priority=5)
         self.command_router.register("project_tasks", self.try_project_task_command, priority=6)
+        self.command_router.register("deploy", self.try_deploy_command, priority=7)
+        self.last_built_apks = {}
         self.command_router.register("reminders", self.try_reminder_command, priority=10)
         self.command_router.register("browser", self.try_browser_command, priority=20)
         self.modules = ModuleRegistry()
@@ -504,6 +507,8 @@ class JarvisApp:
             self._start_project_task(payload["name"], payload["task"])
         elif action == "open_vscode":
             self._open_vscode_project(payload)
+        elif action == "deploy_action":
+            self._start_deploy_task(payload["name"], payload["task"])
         else:
             self.add("JARVIS", "Ação pendente desconhecida; nada foi executado.", True)
 
@@ -1244,6 +1249,140 @@ class JarvisApp:
             self.add("CONTROLE", label + " aberto.")
         except Exception as exc:
             messagebox.showerror("Controle", str(exc))
+
+    def try_deploy_command(self, prompt):
+        """Voice/text entry point for the single JARVIS Deploy workflow."""
+        text = prompt.strip()
+        if re.match(r"^(?:jarvis[, ]*)?(?:status|estado|verifique|verificar)\s+(?:do\s+)?deploy$", text, re.I):
+            tools = deploy_available_tools()
+            lines = ["Ferramentas de publicação (somente leitura; nada foi instalado):"]
+            for name, available in tools.items():
+                lines.append(f"- {name}: {'disponível' if available else 'não encontrado'}")
+            self.add("JARVIS DEPLOY", "\n".join(lines))
+            if self.voice_session_active:
+                self.speak("Diagnóstico do Deploy concluído. Consulte os detalhes na conversa.")
+            return True
+
+        match = re.match(
+            r"^(?:jarvis[, ]*)?(?:gerar|compile|compilar|construir|build)\s+(?:o\s+)?apk\s+(?:do\s+projeto\s+)?([A-Za-z0-9_-]{1,48})$",
+            text, re.I
+        )
+        if match:
+            self._confirm_deploy_action(match.group(1), "build_apk")
+            return True
+        match = re.match(
+            r"^(?:jarvis[, ]*)?(?:preparar|empacotar|criar)\s+(?:o\s+)?site\s+([A-Za-z0-9_-]{1,48})$",
+            text, re.I
+        )
+        if match:
+            self._confirm_deploy_action(match.group(1), "package_site")
+            return True
+        match = re.match(
+            r"^(?:jarvis[, ]*)?(?:publicar|colocar\s+no\s+ar|subir)\s+(?:o\s+)?site\s+([A-Za-z0-9_-]{1,48})$",
+            text, re.I
+        )
+        if match:
+            self._confirm_deploy_action(match.group(1), "publish_site")
+            return True
+        match = re.match(
+            r"^(?:jarvis[, ]*)?(?:publicar|enviar|subir)\s+(?:o\s+)?apk\s+([A-Za-z0-9_-]{1,48})$",
+            text, re.I
+        )
+        if match:
+            self._confirm_deploy_action(match.group(1), "publish_apk")
+            return True
+        return False
+
+    def _confirm_deploy_action(self, name, task):
+        from project_workspace import ROOT
+        if not self.require_access("publish_project", ROOT / name, task):
+            return
+        descriptions = {
+            "build_apk": "compilar o APK de release/debug do projeto",
+            "package_site": "validar e empacotar o site estático em ZIP",
+            "publish_site": "publicar o site em produção pela conta Netlify já autenticada",
+            "publish_apk": "enviar o APK compilado para uma nova GitHub Release"
+        }
+        description = descriptions.get(task)
+        if not description:
+            self.add("JARVIS DEPLOY", "Ação desconhecida; nada foi executado.", True)
+            return
+        warning = (
+            "\nA publicação enviará arquivos para um serviço externo e ficará acessível conforme as configurações da conta."
+            if task in {"publish_site", "publish_apk"} else
+            "\nA compilação pode baixar dependências do projeto. O JARVIS não instalará SDKs nem ferramentas."
+        )
+        message = f"Confirma {description} para o projeto '{name}'?{warning}"
+        if self.voice_session_active:
+            self._request_voice_confirmation("deploy_action", {"name": name, "task": task}, message)
+            return
+        if not messagebox.askyesno("Confirmar JARVIS Deploy", message):
+            self.add("JARVIS DEPLOY", "Ação cancelada. Nenhuma alteração externa foi feita.")
+            return
+        self._start_deploy_task(name, task)
+
+    def _start_deploy_task(self, name, task):
+        from project_workspace import ROOT
+        if not self.require_access("publish_project", ROOT / name, task):
+            return
+        self.busy = True
+        self.status.set("JARVIS DEPLOY")
+        if self.voice_session_active:
+            self.voice_resume_event.clear()
+        threading.Thread(
+            target=self._deploy_worker, args=(name, task),
+            daemon=True, name="JARVIS-Deploy"
+        ).start()
+
+    def _deploy_worker(self, name, task):
+        from project_workspace import ROOT
+        folder = ROOT / name
+        try:
+            if task == "build_apk":
+                result = build_apk(folder)
+                if result["success"]:
+                    self.last_built_apks[name] = result["apk"]
+                    message = f"APK compilado e verificado: {result['apk']}"
+                    self.root.after(0, lambda: self.add("JARVIS DEPLOY • APK PRONTO", message))
+                else:
+                    message = "A compilação falhou ou não gerou um APK válido.\n" + result["output"]
+                    self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • FALHA", value, True))
+            elif task == "package_site":
+                artifact = package_static_site(folder)
+                message = f"Site empacotado: {artifact}"
+                self.root.after(0, lambda: self.add("JARVIS DEPLOY • SITE PRONTO", message))
+            elif task == "publish_site":
+                result = publish_static_site(folder)
+                if result["success"]:
+                    message = "Publicação concluída. URL: " + (result.get("url") or "Netlify confirmou sucesso; URL não foi extraída da resposta.")
+                    self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • SITE PUBLICADO", value))
+                else:
+                    message = "A publicação do site falhou.\n" + result["output"]
+                    self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • FALHA", value, True))
+            elif task == "publish_apk":
+                apk = self.last_built_apks.get(name)
+                if not apk:
+                    raise FileNotFoundError("Este projeto ainda não tem um APK compilado nesta sessão. Primeiro diga: 'JARVIS, compilar APK " + name + "'.")
+                result = publish_apk_release(folder, apk)
+                if result["success"]:
+                    message = "APK publicado na GitHub Release: " + (result.get("release") or "GitHub confirmou a publicação.")
+                    self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • APK PUBLICADO", value))
+                else:
+                    message = "A publicação do APK falhou.\n" + result["output"]
+                    self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • FALHA", value, True))
+            else:
+                raise ValueError("Tarefa Deploy não permitida.")
+            self.root.after(0, lambda: self.status.set("PRONTO"))
+            self.root.after(0, lambda: setattr(self, "busy", False))
+            if self.voice_session_active:
+                self.root.after(0, lambda value=message: self.speak(value[:700]))
+        except Exception as exc:
+            message = "JARVIS Deploy não concluiu a tarefa: " + str(exc)
+            self.root.after(0, lambda value=message: self.add("JARVIS DEPLOY • ERRO", value, True))
+            self.root.after(0, lambda: self.status.set("ERRO"))
+            self.root.after(0, lambda: setattr(self, "busy", False))
+            if self.voice_session_active:
+                self.root.after(0, lambda value=message: self.speak(value[:700]))
 
     def try_reminder_command(self, prompt):
         parsed = parse_reminder(prompt)
