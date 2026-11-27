@@ -7,13 +7,16 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from project_workspace import ROOT
 
-_EXCLUDED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".dart_tool"}
+_EXCLUDED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".dart_tool", ".netlify", ".vercel"}
+_EXCLUDED_FILES = {".npmrc", ".netrc", ".pypirc", "id_rsa", "id_ed25519", "credentials.json", "service-account.json"}
+_EXCLUDED_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"}
 _MAX_SITE_FILES = 5000
 _MAX_SITE_BYTES = 100 * 1024 * 1024
 
@@ -71,6 +74,29 @@ def build_apk(project_path, timeout=900):
     return {"success": True, "returncode": 0, "output": ((result.stdout or "") + "\n" + (result.stderr or ""))[-12000:], "apk": str(expected)}
 
 
+def _safe_site_files(folder):
+    """Return only regular, in-workspace static files; omit common secrets and caches."""
+    files = []
+    total = 0
+    for item in folder.rglob("*"):
+        relative = item.relative_to(folder)
+        if any(part in _EXCLUDED_DIRS for part in relative.parts):
+            continue
+        if item.is_symlink() or not item.is_file():
+            continue
+        name = item.name.lower()
+        if name in _EXCLUDED_FILES or name.startswith(".env") or item.suffix.lower() in _EXCLUDED_SUFFIXES:
+            continue
+        resolved = item.resolve()
+        if folder not in resolved.parents:
+            continue
+        total += item.stat().st_size
+        files.append(item)
+        if len(files) > _MAX_SITE_FILES or total > _MAX_SITE_BYTES:
+            raise ValueError("O site excede o limite de 5.000 arquivos ou 100 MB.")
+    return files
+
+
 def package_static_site(project_path, output_path=None):
     """Create a ZIP of a ready-to-publish static site; never runs build scripts."""
     folder = _project_folder(project_path)
@@ -79,18 +105,9 @@ def package_static_site(project_path, output_path=None):
     destination = Path(output_path).expanduser().resolve() if output_path else folder.parent / (folder.name + "-site.zip")
     if destination == folder or folder in destination.parents:
         raise ValueError("O ZIP de saída não pode ficar dentro da pasta do projeto.")
-    files = []
-    total = 0
-    for item in folder.rglob("*"):
-        if not item.is_file() or any(part in _EXCLUDED_DIRS for part in item.relative_to(folder).parts):
-            continue
-        if item.resolve() == destination:
-            continue
-        size = item.stat().st_size
-        total += size
-        files.append(item)
-        if len(files) > _MAX_SITE_FILES or total > _MAX_SITE_BYTES:
-            raise ValueError("O site excede o limite de 5.000 arquivos ou 100 MB.")
+    files = _safe_site_files(folder)
+    if not any(item.name.lower() == "index.html" and item.parent == folder for item in files):
+        raise ValueError("O index.html não passou pela validação de publicação.")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         for item in files:
@@ -99,30 +116,29 @@ def package_static_site(project_path, output_path=None):
 
 
 def publish_static_site(project_path, timeout=300):
-    """Publish an already-built static directory with the user's Netlify CLI login."""
+    """Publish sanitized static files with the user's Netlify CLI login."""
     folder = _project_folder(project_path)
     if not (folder / "index.html").is_file():
         raise ValueError("Não encontrei index.html na raiz do site.")
     netlify = shutil.which("netlify")
     if not netlify:
         raise FileNotFoundError("Netlify CLI não encontrado. Instale e autentique-se manualmente; o JARVIS não solicita nem armazena tokens.")
-    result = _run([netlify, "deploy", "--prod", "--dir", str(folder), "--json"], folder, min(max(int(timeout), 30), 600))
+    files = _safe_site_files(folder)
+    if not any(item.name.lower() == "index.html" and item.parent == folder for item in files):
+        raise ValueError("O index.html não passou pela validação de publicação.")
+    with tempfile.TemporaryDirectory(prefix="jarvis-site-") as staging:
+        stage = Path(staging)
+        for item in files:
+            target = stage / item.relative_to(folder)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+        result = _run([netlify, "deploy", "--prod", "--dir", str(stage), "--json"], folder, min(max(int(timeout), 30), 600))
     output = ((result.stdout or "") + "\n" + (result.stderr or ""))[-12000:]
     if result.returncode != 0:
         return {"success": False, "returncode": result.returncode, "output": output, "url": None}
     match = re.search(r'"(url|deploy_url|ssl_url)"\s*:\s*"(https://[^"]+)"', result.stdout or "")
     url = match.group(2) if match else None
     return {"success": True, "returncode": 0, "output": output, "url": url}
-
-
-def locate_apk(project_path):
-    """Find the conventional APK output from a prior build."""
-    folder = _project_folder(project_path)
-    candidates = (
-        folder / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk",
-        folder / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk",
-    )
-    return next((str(path) for path in candidates if path.is_file() and path.stat().st_size > 0), None)
 
 
 def publish_apk_release(project_path, apk_path, timeout=180):
