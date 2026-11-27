@@ -49,7 +49,7 @@ class AccessController:
                 "workspace_open", "capture_screen", "audit_folder",
                 "run_project_task", "browser", "desktop_control",
                 "mouse_keyboard", "process_terminate", "system_settings",
-                "install_dependency", "install_software",
+                "install_dependency", "install_software", "publish_project",
             }
 
         # School profile is intentionally conservative and never elevates OS rights.
