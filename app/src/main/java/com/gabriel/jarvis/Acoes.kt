@@ -10,7 +10,6 @@ import android.net.Uri
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import android.provider.Settings
-import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -63,8 +62,6 @@ object Acoes {
         "Para agir, responda SOMENTE com JSON: {\"acao\": \"nome\", \"args\": {...}}.",
         "Para conversar ou responder uma pergunta, responda em texto curto, sem JSON."
     ).joinToString("\n")
-
-    private const val MEMORIA = "jarvis_memoria"
 
     // Respostas locais e somente de leitura que não precisam de uma segunda autorização.
     private val ACOES_SEM_CONFIRMACAO_PARA_IA = setOf(
@@ -149,10 +146,7 @@ object Acoes {
             estilo(ctx) + catalogo + memoria
     }
 
-    private fun fatos(ctx: Context): List<String> = try {
-        val arr = JSONArray(ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).getString("fatos", "[]") ?: "[]")
-        (0 until arr.length()).map { arr.getString(it) }
-    } catch (e: Exception) { emptyList() }
+    private fun fatos(ctx: Context): List<String> = JarvisMemoryStore.facts(ctx)
 
     /** Executa uma ação simples e devolve a frase que deve ser falada. */
     fun executar(ctx: Context, acao: String, args: JSONObject): String = try {
@@ -379,16 +373,19 @@ object Acoes {
     private fun lembrar(ctx: Context, texto: String): String {
         val limpo = texto.trim().take(200)
         if (limpo.isEmpty()) return "O que o senhor quer que eu lembre?"
-        val lista = (fatos(ctx) + limpo).takeLast(50)
-        ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).edit()
-            .putString("fatos", JSONArray(lista).toString()).apply()
-        return "Guardado, senhor."
+        return if (JarvisMemoryStore.add(ctx, limpo)) {
+            "Guardado, senhor."
+        } else {
+            "Não consegui salvar a memória protegida. Tente novamente."
+        }
     }
 
-    private fun esquecer(ctx: Context): String {
-        ctx.getSharedPreferences(MEMORIA, Context.MODE_PRIVATE).edit().remove("fatos").apply()
-        return "Esqueci o que o senhor me pediu para guardar."
-    }
+    private fun esquecer(ctx: Context): String =
+        if (JarvisMemoryStore.clear(ctx)) {
+            "Esqueci o que o senhor me pediu para guardar."
+        } else {
+            "Não consegui confirmar a exclusão da memória. Tente novamente."
+        }
 
     private fun configuracoes(ctx: Context, tela: String): String {
         val acao = when (tela) {
