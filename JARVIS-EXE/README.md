@@ -211,7 +211,7 @@ O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferrament
 - Publicação de site requer Netlify CLI instalada e login prévio. A publicação é em produção e altera um serviço externo.
 - Publicação de APK requer GitHub CLI instalada e login prévio. O diretório precisa estar associado a um repositório GitHub; se o projeto ainda não tiver contexto de repositório, configure-o com Git antes de publicar.
 - O perfil **Escola** bloqueia publicação e compilação. O perfil **Pessoal** permite iniciar essas ações após confirmação.
-- A versão atual empacota/publica sites estáticos prontos. Projetos React/Vite precisam ter a pasta final de saída preparada pelo usuário; a execução automática de scripts arbitrários de build não está habilitada.
+- A versão atual empacota/publica sites estáticos prontos. Projetos React/Vite podem usar a pasta dist/ ou build/ já gerada pelo usuário; a execução automática de scripts arbitrários de build não está habilitada.
 - APK gerado é artefato de build; não é automaticamente assinado para distribuição na Play Store. A Release GitHub não substitui assinatura de produção, política de privacidade, testes em aparelhos ou revisão da loja.
 - A publicação externa nunca é inferida pelo texto da IA: somente o resultado real da CLI determina sucesso. Se a URL não vier no retorno do provedor, o JARVIS não inventa uma.
 
