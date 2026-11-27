@@ -128,8 +128,10 @@ assert "truncatesFactsToTwoHundredCharacters" in MEMORY_POLICY_TEST
 assert "x-goog-api-key" in API_AUTH
 assert 'ApiAuthHeaders.forProvider(name, key)' in ACTIVITY
 assert "models?key=" not in ACTIVITY
+assert "?token=" not in ACTIVITY
 assert "instanceFollowRedirects = false" in ACTIVITY
 assert "geminiUsesDedicatedApiKeyHeader" in API_AUTH_TEST
+assert "brapiUsesBearerAuthentication" in API_AUTH_TEST
 
 assert 'android:usesCleartextTraffic="false"' in MANIFEST
 assert 'cleartextTrafficPermitted="false"' in NETWORK
