@@ -196,7 +196,7 @@ Com **Usar somente IA local** marcado, o JARVIS consulta exclusivamente o Ollama
 
 ## JARVIS Deploy — APK e publicação de sites (primeira integração)
 
-O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferramentas, compilar APKs, empacotar sites estáticos e publicar por contas que o usuário já autenticou. As ações exigem confirmação explícita; o módulo não instala SDKs, CLIs ou dependências automaticamente e não armazena tokens.
+O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferramentas, compilar APKs, empacotar sites estáticos e publicar por contas que o usuário já autenticou. Para um projeto local sem repositório, associe-o a um remoto GitHub antes de publicar o APK. As ações exigem confirmação explícita; o módulo não instala SDKs, CLIs ou dependências automaticamente e não armazena tokens.
 
 ### Comandos reconhecidos
 - `status deploy`: mostra se Flutter, Gradle, Netlify CLI e GitHub CLI estão disponíveis.
@@ -209,7 +209,7 @@ O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferrament
 - Os projetos precisam estar dentro de `Documents/JarvisProjects`.
 - APK Flutter requer Flutter SDK e Android SDK corretamente configurados. Projeto Android Gradle requer Gradle e Android SDK. Nenhuma ferramenta é instalada pelo JARVIS.
 - Publicação de site requer Netlify CLI instalada e login prévio. A publicação é em produção e altera um serviço externo.
-- Publicação de APK requer GitHub CLI instalada, login prévio e um projeto clonado que pertença a um repositório GitHub.
+- Publicação de APK requer GitHub CLI instalada e login prévio. O diretório precisa estar associado a um repositório GitHub; se o projeto ainda não tiver contexto de repositório, configure-o com Git antes de publicar.
 - O perfil **Escola** bloqueia publicação e compilação. O perfil **Pessoal** permite iniciar essas ações após confirmação.
 - A versão atual empacota/publica sites estáticos prontos. Projetos React/Vite precisam ter a pasta final de saída preparada pelo usuário; a execução automática de scripts arbitrários de build não está habilitada.
 - APK gerado é artefato de build; não é automaticamente assinado para distribuição na Play Store. A Release GitHub não substitui assinatura de produção, política de privacidade, testes em aparelhos ou revisão da loja.
