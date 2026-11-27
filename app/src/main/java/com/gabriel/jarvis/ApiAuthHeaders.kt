@@ -10,6 +10,7 @@ internal object ApiAuthHeaders {
         return when (provider) {
             "groq" -> mapOf("Authorization" to "Bearer $apiKey")
             "gemini" -> mapOf("x-goog-api-key" to apiKey)
+            "brapi" -> mapOf("Authorization" to "Bearer $apiKey")
             else -> emptyMap()
         }
     }
