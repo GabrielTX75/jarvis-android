@@ -305,7 +305,7 @@ class MainActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListene
                     "groq" -> "https://api.groq.com/openai/v1/models"
                     "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models"
                     "tavily" -> "https://api.tavily.com/search"
-                    else -> "https://brapi.dev/api/quote/PETR4?token=" + Uri.encode(key)
+                    else -> "https://brapi.dev/api/v2/stocks/quote?symbols=PETR4"
                 }
                 val conn = (URL(target).openConnection() as HttpURLConnection)
                 connection = conn
