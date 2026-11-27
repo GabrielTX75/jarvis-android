@@ -43,6 +43,15 @@ class DeployManagerTests(unittest.TestCase):
             self.assertNotIn(".env", zf.namelist())
             self.assertNotIn("private.pem", zf.namelist())
 
+    def test_packages_prebuilt_dist_folder(self):
+        dist = self.project / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<h1>Built</h1>", encoding="utf-8")
+        archive = deploy_manager.package_static_site(self.project)
+        import zipfile
+        with zipfile.ZipFile(archive) as zf:
+            self.assertIn("index.html", zf.namelist())
+
     def test_static_site_requires_index(self):
         with self.assertRaises(ValueError):
             deploy_manager.package_static_site(self.project)
