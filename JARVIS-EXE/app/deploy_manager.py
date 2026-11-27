@@ -97,39 +97,45 @@ def _safe_site_files(folder):
     return files
 
 
+def _static_site_root(project_folder):
+    """Resolve a ready static output folder without running build scripts."""
+    for candidate in (project_folder, project_folder / "dist", project_folder / "build"):
+        if (candidate / "index.html").is_file():
+            return candidate
+    raise ValueError("Não encontrei index.html na raiz, em dist/ ou em build/. Compile projetos React/Vite manualmente antes de publicar.")
+
+
 def package_static_site(project_path, output_path=None):
     """Create a ZIP of a ready-to-publish static site; never runs build scripts."""
     folder = _project_folder(project_path)
-    if not (folder / "index.html").is_file():
-        raise ValueError("Site estático precisa ter index.html na raiz. Projetos React/Vite precisam ser compilados antes.")
+    site_root = _static_site_root(folder)
     destination = Path(output_path).expanduser().resolve() if output_path else folder.parent / (folder.name + "-site.zip")
     if destination == folder or folder in destination.parents:
         raise ValueError("O ZIP de saída não pode ficar dentro da pasta do projeto.")
-    files = _safe_site_files(folder)
-    if not any(item.name.lower() == "index.html" and item.parent == folder for item in files):
+    files = _safe_site_files(site_root)
+    if not any(item.name.lower() == "index.html" and item.parent == site_root for item in files):
         raise ValueError("O index.html não passou pela validação de publicação.")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         for item in files:
-            archive.write(item, item.relative_to(folder).as_posix())
+            archive.write(item, item.relative_to(site_root).as_posix())
     return destination
 
 
 def publish_static_site(project_path, timeout=300):
     """Publish sanitized static files with the user's Netlify CLI login."""
     folder = _project_folder(project_path)
-    if not (folder / "index.html").is_file():
-        raise ValueError("Não encontrei index.html na raiz do site.")
+    site_root = _static_site_root(folder)
     netlify = shutil.which("netlify")
     if not netlify:
         raise FileNotFoundError("Netlify CLI não encontrado. Instale e autentique-se manualmente; o JARVIS não solicita nem armazena tokens.")
-    files = _safe_site_files(folder)
-    if not any(item.name.lower() == "index.html" and item.parent == folder for item in files):
+    files = _safe_site_files(site_root)
+    if not any(item.name.lower() == "index.html" and item.parent == site_root for item in files):
         raise ValueError("O index.html não passou pela validação de publicação.")
     with tempfile.TemporaryDirectory(prefix="jarvis-site-") as staging:
         stage = Path(staging)
         for item in files:
-            target = stage / item.relative_to(folder)
+            target = stage / item.relative_to(site_root)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, target)
         result = _run([netlify, "deploy", "--prod", "--dir", str(stage), "--json"], folder, min(max(int(timeout), 30), 600))
@@ -139,6 +145,16 @@ def publish_static_site(project_path, timeout=300):
     match = re.search(r'"(url|deploy_url|ssl_url)"\s*:\s*"(https://[^"]+)"', result.stdout or "")
     url = match.group(2) if match else None
     return {"success": True, "returncode": 0, "output": output, "url": url}
+
+
+def locate_apk(project_path):
+    """Find the conventional APK output from a prior build."""
+    folder = _project_folder(project_path)
+    candidates = (
+        folder / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk",
+        folder / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk",
+    )
+    return next((str(path) for path in candidates if path.is_file() and path.stat().st_size > 0), None)
 
 
 def publish_apk_release(project_path, apk_path, timeout=180):
