@@ -42,15 +42,15 @@ internal object JarvisMemoryStore {
     fun clear(context: Context): Boolean {
         val app = context.applicationContext
         val secure = encryptedPreferences(app) ?: return false
-        val secureCleared = try {
-            secure.edit().remove(FACTS_KEY).commit()
+        val legacyCleared = try {
+            app.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE)
+                .edit().remove(FACTS_KEY).commit()
         } catch (_: Exception) {
             false
         }
-        if (!secureCleared) return false
+        if (!legacyCleared) return false
         return try {
-            app.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE)
-                .edit().remove(FACTS_KEY).commit()
+            secure.edit().remove(FACTS_KEY).commit()
         } catch (_: Exception) {
             false
         }
