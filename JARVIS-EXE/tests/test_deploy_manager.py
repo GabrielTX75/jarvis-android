@@ -31,6 +31,8 @@ class DeployManagerTests(unittest.TestCase):
     def test_packages_static_site_without_running_scripts(self):
         (self.project / "index.html").write_text("<h1>Olá</h1>", encoding="utf-8")
         (self.project / "app.js").write_text("alert(1)", encoding="utf-8")
+        (self.project / ".env").write_text("API_KEY=do-not-publish", encoding="utf-8")
+        (self.project / "private.pem").write_text("private-key", encoding="utf-8")
         with patch.object(deploy_manager, "_run") as runner:
             archive = deploy_manager.package_static_site(self.project)
             runner.assert_not_called()
@@ -38,6 +40,8 @@ class DeployManagerTests(unittest.TestCase):
         with zipfile.ZipFile(archive) as zf:
             self.assertIn("index.html", zf.namelist())
             self.assertIn("app.js", zf.namelist())
+            self.assertNotIn(".env", zf.namelist())
+            self.assertNotIn("private.pem", zf.namelist())
 
     def test_static_site_requires_index(self):
         with self.assertRaises(ValueError):
