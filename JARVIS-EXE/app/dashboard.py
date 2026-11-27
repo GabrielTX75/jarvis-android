@@ -1474,10 +1474,14 @@ class JarvisApp:
                 saved = self.memory.remember(fact)
                 self.add("MEMÓRIA LOCAL", "Lembrei: " + saved)
             except Exception as exc:
-                self.add("MEMÓRIA LOCAL", str(exc), True)
+                self.add("MEMÓRIA LOCAL • ERRO", str(exc), True)
             return True
         if re.search(r"\b(o que você lembra|o que voce lembra|minhas memórias|minhas memorias|listar memórias|listar memorias)\b", text, re.I):
-            items = self.memory.list()
+            try:
+                items = self.memory.list()
+            except Exception as exc:
+                self.add("MEMÓRIA LOCAL • ERRO", "Não foi possível abrir a memória protegida. " + str(exc), True)
+                return True
             if not items:
                 self.add("MEMÓRIA LOCAL", "Ainda não há fatos salvos.")
             else:
@@ -1485,8 +1489,11 @@ class JarvisApp:
             return True
         if re.search(r"\b(esqueça tudo|esqueca tudo|apague minhas memórias|apague minhas memorias|limpe a memória|limpe a memoria)\b", text, re.I):
             if messagebox.askyesno("Apagar memória local", "Apagar todos os fatos salvos neste computador?"):
-                count = self.memory.forget()
-                self.add("MEMÓRIA LOCAL", f"{count} fato(s) apagado(s).")
+                try:
+                    count = self.memory.forget()
+                    self.add("MEMÓRIA LOCAL", f"{count} fato(s) apagado(s).")
+                except Exception as exc:
+                    self.add("MEMÓRIA LOCAL • ERRO", "A memória não foi apagada. " + str(exc), True)
             else:
                 self.add("MEMÓRIA LOCAL", "Nenhuma memória foi apagada.")
             return True
@@ -1502,26 +1509,64 @@ class JarvisApp:
         listing = tk.Listbox(win, bg="#041321", fg=TEXT, selectbackground="#075d85",
                              relief="flat", font=("Segoe UI", 10), height=15)
         listing.pack(fill="both", expand=True, padx=14, pady=6)
+        status = tk.Label(win, text="", bg=PANEL, fg=MUTED, wraplength=580, justify="left")
+        status.pack(anchor="w", padx=14, pady=(0, 6))
+        state = {"available": False}
+        remove_button = None
+        clear_button = None
+
         def refresh():
             listing.delete(0, "end")
-            for item in self.memory.list():
-                listing.insert("end", item)
+            try:
+                items = self.memory.list()
+            except Exception as exc:
+                state["available"] = False
+                listing.insert("end", "Não foi possível abrir a memória protegida.")
+                status.configure(text=str(exc), fg=RED)
+            else:
+                state["available"] = True
+                for item in items:
+                    listing.insert("end", item)
+                status.configure(
+                    text="Protegida com DPAPI do Windows • vinculada à conta atual • sem sincronização.",
+                    fg=GREEN
+                )
+            button_state = "normal" if state["available"] else "disabled"
+            if remove_button is not None:
+                remove_button.configure(state=button_state)
+            if clear_button is not None:
+                clear_button.configure(state=button_state)
+
         def remove_selected():
+            if not state["available"]:
+                return
             selected = listing.curselection()
             if not selected:
                 messagebox.showinfo("Memória", "Selecione um fato para apagar.", parent=win)
                 return
-            self.memory.forget(selected[0] + 1)
+            try:
+                self.memory.forget(selected[0] + 1)
+            except Exception as exc:
+                messagebox.showerror("Memória", str(exc), parent=win)
             refresh()
+
         def clear_all():
+            if not state["available"]:
+                return
             if messagebox.askyesno("Apagar memória", "Apagar todos os fatos locais?", parent=win):
-                self.memory.forget()
+                try:
+                    self.memory.forget()
+                except Exception as exc:
+                    messagebox.showerror("Memória", str(exc), parent=win)
                 refresh()
+
         actions = tk.Frame(win, bg=PANEL)
         actions.pack(fill="x", padx=14, pady=10)
-        self.button(actions, "APAGAR SELECIONADO", remove_selected, compact=True).pack(side="left", padx=3)
-        self.button(actions, "APAGAR TUDO", clear_all, compact=True).pack(side="left", padx=3)
-        tk.Label(win, text="A memória é local, não sincroniza e só guarda fatos pedidos explicitamente.",
+        remove_button = self.button(actions, "APAGAR SELECIONADO", remove_selected, compact=True)
+        remove_button.pack(side="left", padx=3)
+        clear_button = self.button(actions, "APAGAR TUDO", clear_all, compact=True)
+        clear_button.pack(side="left", padx=3)
+        tk.Label(win, text="A memória guarda apenas fatos solicitados explicitamente. O arquivo é criptografado pelo Windows.",
                  bg=PANEL, fg=MUTED, wraplength=580, justify="left").pack(anchor="w", padx=14, pady=(0, 12))
         refresh()
 
