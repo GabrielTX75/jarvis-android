@@ -124,7 +124,7 @@ assert "JarvisMemoryStore.clear(ctx)" in ACTIONS
 assert "keepsOnlyTheMostRecentFiftyFacts" in MEMORY_POLICY_TEST
 assert "truncatesFactsToTwoHundredCharacters" in MEMORY_POLICY_TEST
 
-# Gemini API: a chave vai no cabeçalho, nunca na query string da URL de teste.
+# Gemini e brapi: chaves vão em cabeçalhos, nunca na query string da URL de teste.
 assert "x-goog-api-key" in API_AUTH
 assert 'ApiAuthHeaders.forProvider(name, key)' in ACTIVITY
 assert "models?key=" not in ACTIVITY
