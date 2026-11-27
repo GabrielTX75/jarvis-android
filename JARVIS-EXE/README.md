@@ -56,6 +56,7 @@ A tela inicial foi reorganizada como uma central de comando em preto/azul/ciano:
 - Os perfis orientam o estilo e o foco da resposta; não concedem permissões extras nem executam ações locais por conta própria.
 - A memória local salva apenas fatos solicitados explicitamente, permite listar e apagar itens e não sincroniza com outros aplicativos.
 - O arquivo local é protegido com Windows DPAPI, vinculado à conta atual do Windows; credenciais e tokens continuam recusados pelo módulo. Arquivos JSON antigos em texto puro são migrados para o formato protegido na primeira leitura. Se a conta/perfil do Windows mudar, o arquivo antigo pode não ser recuperável; faça backup pelo próprio Windows antes de trocar de conta ou reinstalar o sistema.
+- Se a memória não puder ser descriptografada, o arquivo é preservado e a conversa com a IA continua sem esse contexto, com um aviso no painel.
 - O fluxo Visão captura a tela somente após autorização, extrai texto localmente via OCR e envia o texto extraído ao histórico. Isso ainda não é compreensão geral de imagens nem observação contínua da tela.
 
 ## JARVIS Security Lab — Blue Team e Red Team
