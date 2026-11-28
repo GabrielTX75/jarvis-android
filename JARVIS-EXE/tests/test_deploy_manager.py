@@ -76,6 +76,21 @@ class DeployManagerTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertIsNone(result["apk"])
 
+    def test_android_gradle_build_prefers_project_wrapper(self):
+        (self.project / "settings.gradle").write_text("rootProject.name='demo'", encoding="utf-8")
+        wrapper_name = "gradlew.bat" if deploy_manager.os.name == "nt" else "gradlew"
+        wrapper = self.project / wrapper_name
+        wrapper.write_text("wrapper placeholder", encoding="utf-8")
+        apk = self.project / "app/build/outputs/apk/debug/app-debug.apk"
+        apk.parent.mkdir(parents=True)
+        apk.write_bytes(b"apk")
+        with patch.object(deploy_manager.shutil, "which", return_value=None), \\
+             patch.object(deploy_manager, "_run", return_value=subprocess.CompletedProcess([], 0, "ok", "")) as runner:
+            result = deploy_manager.build_apk(self.project)
+        self.assertTrue(result["success"])
+        self.assertEqual(Path(runner.call_args.args[0][0]), wrapper)
+        self.assertEqual(Path(result["apk"]).resolve(), apk.resolve())
+
     def test_publish_requires_netlify_cli(self):
         (self.project / "index.html").write_text("ok", encoding="utf-8")
         with patch.object(deploy_manager.shutil, "which", return_value=None):
