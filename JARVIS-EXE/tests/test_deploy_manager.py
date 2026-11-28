@@ -65,7 +65,7 @@ class DeployManagerTests(unittest.TestCase):
              patch.object(deploy_manager, "_run", return_value=subprocess.CompletedProcess([], 0, "ok", "")) as runner:
             result = deploy_manager.build_apk(self.project)
         self.assertTrue(result["success"])
-        self.assertEqual(result["apk"], str(apk))
+        self.assertEqual(Path(result["apk"]).resolve(), apk.resolve())
         self.assertFalse(runner.call_args.args[0][0] == "cmd")
 
     def test_flutter_build_does_not_claim_success_without_apk(self):
