@@ -59,9 +59,18 @@ def build_apk(project_path, timeout=900):
         command = [flutter, "build", "apk", "--release"]
         expected = folder / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk"
     elif (folder / "settings.gradle").is_file() or (folder / "settings.gradle.kts").is_file():
-        if not gradle:
-            raise FileNotFoundError("Gradle não encontrado no PATH. Instale-o manualmente; o JARVIS não instala SDKs.")
-        command = [gradle, ":app:assembleDebug", "--no-daemon"]
+        # Prefer the project's Gradle Wrapper so the build uses its pinned Gradle version.
+        wrapper_name = "gradlew.bat" if os.name == "nt" else "gradlew"
+        wrapper = folder / wrapper_name
+        if wrapper.is_file():
+            command = [str(wrapper), ":app:assembleDebug", "--no-daemon"]
+        elif gradle:
+            command = [gradle, ":app:assembleDebug", "--no-daemon"]
+        else:
+            raise FileNotFoundError(
+                "Gradle Wrapper do projeto ou Gradle no PATH não encontrado. "
+                "Instale/configure Gradle manualmente; o JARVIS não instala SDKs."
+            )
         expected = folder / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
     else:
         raise ValueError("Não reconheci um projeto Flutter (pubspec.yaml) ou Android Gradle (settings.gradle).")
