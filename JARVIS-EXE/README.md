@@ -192,3 +192,28 @@ O JARVIS EXE pode conversar com um modelo local pelo Ollama, sem enviar o conte�
 O primeiro download do modelo exige internet e ocupa espaço em disco. Depois de baixado, a inferência é local. A velocidade depende de RAM, CPU/GPU e do tamanho do modelo; computadores modestos podem responder lentamente. A IA local não precisa de chave API, mas o JARVIS EXE não instala nem baixa modelos silenciosamente. O usuário escolhe e instala o Ollama e o modelo.
 
 Com **Usar somente IA local** marcado, o JARVIS consulta exclusivamente o Ollama em `127.0.0.1`. Se o Ollama estiver desligado ou o modelo não existir, o JARVIS mostra um erro e não envia a conversa para Groq, Gemini ou qualquer provedor online. Nesse modo, nem sequer consulta as credenciais de nuvem. Com a opção desmarcada, o JARVIS tenta Groq, depois Gemini e, por último, Ollama como alternativa.
+
+
+## JARVIS Deploy — APK e publicação de sites (primeira integração)
+
+O módulo **JARVIS Deploy** reúne comandos por voz/texto para validar ferramentas, compilar APKs, empacotar sites estáticos e publicar por contas que o usuário já autenticou. Para um projeto local sem repositório, associe-o a um remoto GitHub ou configure o repositório padrão do GitHub CLI antes de publicar o APK. As ações exigem confirmação explícita; o módulo não instala SDKs, CLIs ou dependências automaticamente e não armazena tokens.
+
+### Comandos reconhecidos
+- `status deploy`: mostra se Flutter, Gradle, Netlify CLI e GitHub CLI estão disponíveis.
+- `compilar apk NOME`: compila projeto Flutter com `flutter build apk --release` ou projeto Android Gradle com `:app:assembleDebug`; só informa sucesso se o arquivo APK esperado existir.
+- `preparar site NOME`: cria um ZIP de um site estático que tenha `index.html` na raiz. Não executa scripts de build.
+- `publicar site NOME`: envia a pasta estática diretamente para produção usando Netlify CLI e a sessão que o usuário já autenticou.
+- `publicar apk NOME`: envia o APK gerado nesta sessão para uma nova GitHub Release usando GitHub CLI autenticada e o repositório clonado do projeto.
+
+### Requisitos e limites
+- Os projetos precisam estar dentro de `Documents/JarvisProjects`.
+- APK Flutter requer Flutter SDK e Android SDK corretamente configurados. Projeto Android Gradle requer Gradle e Android SDK. Nenhuma ferramenta é instalada pelo JARVIS.
+- Publicação de site requer Netlify CLI instalada e login prévio. A publicação é em produção e altera um serviço externo.
+- Publicação de APK requer GitHub CLI instalada e login prévio. O diretório precisa estar associado a um repositório GitHub; se o projeto ainda não tiver contexto de repositório, configure-o com Git antes de publicar.
+- O perfil **Escola** bloqueia publicação e compilação. O perfil **Pessoal** permite iniciar essas ações após confirmação.
+- A versão atual empacota/publica sites estáticos prontos. Projetos React/Vite podem usar a pasta dist/ ou build/ já gerada pelo usuário; a execução automática de scripts arbitrários de build não está habilitada.
+- APK gerado é artefato de build; não é automaticamente assinado para distribuição na Play Store. A Release GitHub não substitui assinatura de produção, política de privacidade, testes em aparelhos ou revisão da loja.
+- A publicação externa nunca é inferida pelo texto da IA: somente o resultado real da CLI determina sucesso. Se a URL não vier no retorno do provedor, o JARVIS não inventa uma.
+
+### Validação
+Os testes unitários cobrem validação de caminhos, empacotamento estático sem executar scripts, verificação da existência do APK, ausência de CLI e comandos de publicação sem shell. O build/teste do Windows deve ser confirmado no GitHub Actions antes de considerar esta integração validada.
